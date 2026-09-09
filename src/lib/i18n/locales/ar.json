@@ -1,0 +1,417 @@
+{
+  "layout": {
+    "dashboard": "لوحة القيادة",
+    "products": "المنتجات",
+    "inventory": "المخزون",
+    "orders": "الطلبات",
+    "returns": "المرتجعات",
+    "purchases": "المشتريات",
+    "finance": "المالية",
+    "media": "الوسائط",
+    "tasks": "المهام",
+    "notifications": "الإشعارات",
+    "logout": "تسجيل الخروج"
+  },
+  "dashboard": {
+    "title": "لوحة القيادة",
+    "subtitle": "نظرة عامة على أداء ومقاييس عملك",
+    "addProduct": "إضافة منتج",
+    "newOrder": "طلب جديد",
+    "totalRevenue": "إجمالي الإيرادات",
+    "orders": "الطلبات",
+    "productsInStock": "المنتجات المتوفرة",
+    "activeSessions": "الجلسات النشطة",
+    "fromLastMonth": "مقارنة بالشهر الماضي",
+    "acrossWarehouses": "عبر جميع المخازن",
+    "sinceLastHour": "منذ الساعة الماضية",
+    "salesOverview": "نظرة عامة على المبيعات",
+    "salesOverviewDesc": "تحليل الإيرادات الشهرية للعام الحالي",
+    "lowInventoryAlerts": "تنبيهات نقص المخزون",
+    "lowInventoryDesc": "المنتجات التي اقتربت من النفاد.",
+    "itemsLeft": "قطعة متبقية",
+    "minThreshold": "الحد الأدنى",
+    "allStocked": "جميع المنتجات متوفرة بكميات مناسبة.",
+    "damagedGoods": "المنتجات التالفة",
+    "totalClaimsValue": "قيمة مطالبات التعويض",
+    "viewFullInventory": "عرض المخزون بالكامل"
+  },
+  "products": {
+    "status": {
+      "active": "نشط / منشور",
+      "inactive": "غير نشط / مسودة",
+      "pending": "قيد المزامنة",
+      "suspended": "موقوف"
+    },
+    "form": {
+      "save": "حفظ المنتج",
+      "saving": "جاري الحفظ...",
+      "cancel": "إلغاء",
+      "create": "إنشاء منتج جديد",
+      "edit": "تعديل المنتج:",
+      "subtitle": "أدخل البيانات التشغيلية والمالية وبيانات تحسين محركات البحث لكتالوج متجرك.",
+      "tabs": {
+        "general": "معلومات عامة",
+        "pricing": "التسعير والرسوم",
+        "inventory": "المخزون",
+        "marketplaces": "الأسواق",
+        "seo": "السيو والذكاء الاصطناعي",
+        "media": "الوسائط"
+      },
+      "sections": {
+        "basicInfo": {
+          "title": "المعلومات الأساسية",
+          "desc": "المعلومات الأساسية لمنتجك بما في ذلك التسمية، الفهرسة، والتصنيف."
+        },
+        "basePricing": {
+          "title": "التسعير الأساسي والتكلفة",
+          "desc": "تتبع التكلفة ونقاط سعر البيع الأساسية. حاسمة لمقاييس العائد على الاستثمار."
+        },
+        "marketplacePricing": {
+          "title": "أسعار مخصصة للأسواق",
+          "desc": "أسعار بيع بديلة مخصصة للقنوات الخارجية. اتركها فارغة لاستخدام السعر الافتراضي."
+        },
+        "fees": {
+          "title": "الرسوم والخصومات",
+          "desc": "التكاليف التشغيلية المقدرة لهذا العنصر. تساعد في تقدير الهامش الصافي."
+        },
+        "inventoryControls": {
+          "title": "المخزون وضوابط المخزون",
+          "desc": "مراقبة كميات المستودع، الأحجام المحجوزة، وتفعيل التنبيهات."
+        },
+        "channelSync": {
+          "title": "حالة مزامنة القنوات",
+          "desc": "حالات النشر لربط هذا الكتالوج بمواقع التجارة الإلكترونية الخارجية."
+        },
+        "listingMapping": {
+          "title": "روابط المنتجات",
+          "desc": "روابط تؤدي إلى صفحات المنتج الحية على منصات التجارة الإلكترونية."
+        },
+        "seoConfig": {
+          "title": "إعدادات تحسين محركات البحث (السيو)",
+          "desc": "تحسين صفحات تفاصيل قوائم المنتجات لمحركات البحث."
+        },
+        "aiCopywriter": {
+          "title": "كاتب المحتوى بالذكاء الاصطناعي",
+          "desc": "استفد من سكريبتات التوليد بالذكاء الاصطناعي لكتابة أوصاف تسويقية احترافية."
+        },
+        "mainThumbnail": {
+          "title": "الصورة المصغرة الرئيسية",
+          "desc": "صورة نتائج البحث الرئيسية. ستعرض على البطاقات."
+        },
+        "gallery": {
+          "title": "معرض صور المنتج",
+          "desc": "قم برفع صور إضافية للمعرض ليتم عرضها على صفحات الأسواق التفصيلية."
+        }
+      },
+      "fields": {
+        "productName": "اسم المنتج *",
+        "slug": "الرابط (مُولد تلقائياً) *",
+        "sku": "رمز المنتج (SKU) *",
+        "barcode": "الباركود / EAN",
+        "brand": "العلامة التجارية *",
+        "category": "الفئة *",
+        "subcategory": "الفئة الفرعية",
+        "description": "وصف المنتج",
+        "costPrice": "تكلفة الوحدة (ج.م) *",
+        "sellingPrice": "سعر البيع الأساسي (ج.م) *",
+        "amazonPrice": "سعر أمازون (ج.م)",
+        "noonPrice": "سعر نون (ج.م)",
+        "jumiaPrice": "سعر جوميا (ج.م)",
+        "shippingCost": "تكلفة الشحن المقدرة (ج.م)",
+        "packagingCost": "تكلفة التغليف العامة (ج.م)",
+        "adsCost": "تخصيص التسويق / الإعلانات (ج.م)",
+        "marketplaceFees": "عمولة المنصة / الرسوم (ج.م)",
+        "quantity": "إجمالي الوحدات المتوفرة *",
+        "reservedQuantity": "الوحدات المحجوزة (مباعة/ملتزم بها)",
+        "minimumStockAlert": "الحد الأدنى لتنبيه نقص المخزون",
+        "amazonStatus": "حالة أمازون",
+        "noonStatus": "حالة نون",
+        "jumiaStatus": "حالة جوميا",
+        "amazonUrl": "رابط منتج أمازون",
+        "noonUrl": "رابط منتج نون",
+        "jumiaUrl": "رابط منتج جوميا",
+        "metaTitle": "عنوان السيو",
+        "metaDescription": "وصف السيو",
+        "keywords": "الكلمات المفتاحية (مفصولة بفاصلة)",
+        "aiPrompt": "تعليمات الذكاء الاصطناعي",
+        "aiGenerated": "معاينة المحتوى المُولد"
+      },
+      "buttons": {
+        "generateCopy": "توليد وصف تسويقي",
+        "generating": "جاري التوليد...",
+        "uploadThumbnail": "رفع الصورة الرئيسية",
+        "uploadGallery": "رفع صور المعرض (حتى 5)",
+        "previous": "السابق",
+        "next": "التالي"
+      }
+    }
+  },
+  "orders": {
+    "title": "الطلبات",
+    "subtitle": "إدارة طلبات الأسواق والمبيعات المباشرة.",
+    "newOrder": "طلب جديد",
+    "totalOrders": "إجمالي الطلبات",
+    "totalSales": "إجمالي المبيعات",
+    "totalNetProfit": "إجمالي صافي الربح",
+    "search": "ابحث برقم الطلب...",
+    "columns": {
+      "orderId": "رقم الطلب",
+      "platform": "المنصة",
+      "status": "الحالة",
+      "items": "المنتجات",
+      "sales": "المبيعات",
+      "netProfit": "صافي الربح",
+      "date": "التاريخ",
+      "actions": "الإجراءات"
+    },
+    "statuses": {
+      "Pending": "قيد الانتظار",
+      "Processing": "جاري التجهيز",
+      "Shipped": "تم التسليم لشركة الشحن",
+      "Delivered": "تم التوصيل للمشتري",
+      "Cancelled": "ملغي",
+      "Returned": "مرتجع",
+      "ReturnedToSeller": "تم الإرجاع إلى البائع",
+      "ReturningToSeller": "جار الإرجاع إلى البائع",
+      "RejectedByBuyer": "تم الرفض من قبل المشتري"
+    },
+    "currency": "ج.م",
+    "deleteConfirm": "هل أنت متأكد من حذف هذا الطلب؟ سيتم إرجاع المنتجات للمخزون.",
+    "editOrder": "تعديل الطلب",
+    "deleteOrder": "حذف الطلب",
+    "clearFilters": "مسح الفلاتر",
+    "outOf": "من أصل",
+    "moreItems": "أخرى",
+    "form": {
+      "title": "إنشاء طلب",
+      "editTitle": "تعديل الطلب",
+      "subtitle": "سجّل طلبًا جديدًا من منصة البيع لمتابعة الأرباح.",
+      "orderInfo": "بيانات الطلب",
+      "platformOrderId": "رقم الطلب على المنصة",
+      "platformOrderIdPlaceholder": "مثال: 408-1234567-8901234",
+      "platform": "المنصة",
+      "status": "الحالة",
+      "orderDate": "تاريخ الطلب",
+      "productDetails": "بيانات المنتج",
+      "product": "المنتج",
+      "selectProduct": "اختر منتجًا...",
+      "inStock": "في المخزون",
+      "autoName": "الاسم (يُملأ تلقائيًا)",
+      "quantity": "الكمية",
+      "unitPrice": "سعر الوحدة (يُملأ تلقائيًا)",
+      "financialBreakdown": "التفاصيل المالية",
+      "financialNote": "أدخل الأرقام بالقيمة المطلقة الموجبة. يتم خصم التكاليف تلقائيًا.",
+      "customerPayments": "مدفوعات العميل",
+      "productSales": "إجمالي المبيعات",
+      "shippingCredits": "رسوم الشحن (من العميل)",
+      "promotions": "خصومات وعروض",
+      "platformFees": "رسوم المنصة والتكاليف",
+      "sellingFees": "عمولة البيع",
+      "fulfillmentFees": "رسوم التخزين/الشحن FBA",
+      "shippingCost": "تكلفة الشحن (منك أنت)",
+      "otherFees": "رسوم أخرى",
+      "netPayout": "صافي المبلغ المحسوب",
+      "netPayoutNote": "هذا هو صافي ربحك/مدفوعاتك من هذه العملية.",
+      "cancel": "إلغاء",
+      "save": "حفظ الطلب",
+      "saving": "جاري الحفظ...",
+      "returns": {
+        "title": "المرتجعات والمطالبات",
+        "isReturned": "تم إرجاع الطلب؟",
+        "condition": "حالة المنتج المرتجع",
+        "conditions": {
+          "Intact": "سليم (يُضاف للمخزون)",
+          "Damaged": "تالف",
+          "Missing Parts": "ناقص الملحقات"
+        },
+        "claimState": "حالة مطالبة التعويض",
+        "claimStates": {
+          "Not Applicable": "لا ينطبق",
+          "Under Verification": "قيد التحقق",
+          "Compensated": "تم التعويض",
+          "Rejected": "مرفوضة"
+        },
+        "claimId": "رقم المطالبة (إن وجد)",
+        "damagedGoodsValue": "قيمة التوالف",
+        "notes": "ملاحظات إضافية"
+      }
+    }
+  },
+  "returns": {
+    "title": "المرتجعات",
+    "subtitle": "إدارة الطلبات المرتجعة ومطالبات SAFE-T.",
+    "columns": {
+      "date": "التاريخ",
+      "orderId": "رقم الطلب",
+      "item": "الصنف",
+      "quantity": "الكمية",
+      "status": "حالة الطلب",
+      "returnStatus": "حالة المرتجع",
+      "financialStatus": "الحالة المالية",
+      "safeT": "SAFE-T",
+      "returnReceived": "تم استلام مرتجع",
+      "payment": "الدفع",
+      "price": "السعر",
+      "net": "الصافي",
+      "condition": "حالة الطلب"
+    },
+    "safeT": {
+      "Under Investigation": "قيد التحقيق",
+      "Compensated": "تم التعويض",
+      "Denied": "مرفوض",
+      "None": "-"
+    },
+    "received": {
+      "yes": "تم الاستلام",
+      "no": "-"
+    },
+    "payment": {
+      "Deducted": "تم الخصم",
+      "Refunded": "تم التعويض",
+      "Paid": "تم الدفع",
+      "None": "-"
+    },
+    "conditions": {
+      "Damaged": "تالفة",
+      "Intact": "سليمة",
+      "Customer Fault": "خطأ مشتري",
+      "Unknown": "غير محدد"
+    }
+  },
+  "purchases": {
+    "title": "المشتريات",
+    "subtitle": "تتبع مشتريات الجملة وحركات المخزون الواردة.",
+    "newPurchase": "شراء جديد",
+    "editPurchase": "تعديل الشراء",
+    "totalSpent": "إجمالي المصروفات",
+    "received": "تم الاستلام",
+    "pending": "قيد الانتظار",
+    "searchSupplier": "ابحث باسم المورد...",
+    "columns": {
+      "supplier": "المورد",
+      "products": "المنتجات",
+      "status": "الحالة",
+      "itemsCost": "تكلفة المنتجات",
+      "shipping": "الشحن",
+      "totalCost": "التكلفة الإجمالية",
+      "date": "التاريخ"
+    },
+    "statuses": {
+      "Pending": "قيد الانتظار (لم يتم الاستلام)",
+      "Received": "تم الاستلام (يضاف للمخزون)",
+      "Cancelled": "ملغي"
+    },
+    "form": {
+      "createTitle": "تسجيل شراء جديد",
+      "editTitle": "تعديل بيانات الشراء",
+      "supplierName": "اسم المورد *",
+      "supplierPlaceholder": "مثال: مؤسسة الأهرام التجارية",
+      "purchaseDate": "تاريخ الشراء",
+      "status": "الحالة",
+      "productDetails": "تفاصيل المنتج",
+      "product": "المنتج *",
+      "searchProduct": "ابحث بالاسم أو الرمز (SKU)...",
+      "quantity": "الكمية *",
+      "unitCost": "تكلفة الوحدة (جملة) *",
+      "financials": "التفاصيل المالية",
+      "additionalExpenses": "مصروفات إضافية",
+      "shippingFreight": "الشحن / النقل",
+      "otherCustoms": "أخرى (جمارك، تخليص، الخ)",
+      "totalPurchaseCost": "إجمالي تكلفة الشراء",
+      "cancel": "إلغاء",
+      "save": "حفظ بيانات الشراء",
+      "update": "تحديث بيانات الشراء",
+      "saving": "جاري الحفظ..."
+    }
+  },
+  "upload": {
+    "dragDropHint": "اسحب وأفلت الصور هنا، أو انقر للتصفح. الحجم الأقصى 5 ميجابايت.",
+    "maxFilesAlert": "يمكنك رفع {{count}} ملف كحد أقصى.",
+    "notImageAlert": "الملف \"{{name}}\" ليس صورة. مسموح بالصور فقط.",
+    "fileSizeAlert": "الملف \"{{name}}\" يتجاوز الحد الأقصى 5 ميجابايت.",
+    "failed": "فشل"
+  },
+  "common": {
+    "copy": "نسخ بيانات المنتج",
+    "copySuccess": "تم النسخ!",
+    "filterPlatform": "المنصة",
+    "filterStatus": "الحالة",
+    "filterDate": "الفترة",
+    "allPlatforms": "كل المنصات",
+    "allStatuses": "كل الحالات",
+    "today": "اليوم",
+    "thisWeek": "هذا الأسبوع",
+    "thisMonth": "هذا الشهر",
+    "allTime": "كل الوقت",
+    "none": "لا يوجد",
+    "total": "الإجمالي"
+  },
+  "finance": {
+    "title": "اللوحة المالية",
+    "subtitle": "تتبع الإيرادات، التسويات، وصافي الأرباح.",
+    "importSettlement": "استيراد تسوية أمازون",
+    "grossSales": "إجمالي المبيعات",
+    "marketplaceFees": "عمولات المنصات المقدرة",
+    "totalCogs": "إجمالي التكلفة (COGS)",
+    "expectedNet": "صافي الربح المتوقع",
+    "settlementStatus": "حالة التسويات",
+    "settledNet": "الصافي المسوى (المستلم)",
+    "unsettledOrders": "طلبات معلقة",
+    "settledOrders": "طلبات مسواة",
+    "recentUnsettled": "أحدث الطلبات المعلقة",
+    "uploadDragDrop": "انقر لاختيار الملف",
+    "uploadFormats": "يقبل صيغ .txt و .tsv من مركز بائعين أمازون",
+    "startImport": "بدء الاستيراد",
+    "importSuccess": "تم الاستيراد بنجاح",
+    "importSummary": "تمت معالجة {{total}} سجل وتحديث {{matched}} طلب.",
+    "expenses": "المصروفات",
+    "totalPurchases": "إجمالي المشتريات",
+    "bottomLineProfit": "صافي الربح النهائي",
+    "platformBreakdown": "حسابات المنصات",
+    "totalExpected": "الإجمالي المتوقع",
+    "totalSettled": "الإجمالي المسوى",
+    "settled": "مسوى / تم التعويض",
+    "unsettled": "غير مسوى",
+    "disputed": "متنازع عليه / مرفوض",
+    "profitWaterfall": "تفصيل صافي الربح",
+    "netAfterExpenses": "صافي بعد المصروفات",
+    "expensesByCategory": "المصروفات حسب الفئة",
+    "returnLosses": "خسائر المرتجعات"
+  },
+  "settings": {
+    "title": "الإعدادات",
+    "subtitle": "إدارة الإعدادات العامة والضرائب.",
+    "saved": "تم حفظ الإعدادات بنجاح!",
+    "tax": {
+      "title": "إعدادات ضريبة القيمة المضافة (VAT)",
+      "globalVat": "نسبة الضريبة العامة (%)",
+      "globalVatHelp": "تُطبق هذه النسبة كافتراضية على المنتجات ما لم يتم تجاوزها في إعدادات الفئة.",
+      "categoryVat": "نسب الضريبة المخصصة للفئات (%)"
+    }
+  },
+  "expenses": {
+    "title": "المصروفات",
+    "subtitle": "تتبع وإدارة المصروفات التشغيلية",
+    "newExpense": "مصروف جديد",
+    "date": "التاريخ",
+    "description": "الوصف",
+    "amount": "المبلغ",
+    "category": "الفئة",
+    "platform": "المنصة (اختياري)",
+    "categories": {
+      "packaging": "تغليف",
+      "shipping": "شحن",
+      "transportation": "نقل",
+      "marketing": "تسويق",
+      "salaries": "رواتب",
+      "other": "أخرى"
+    },
+    "form": {
+      "createTitle": "إضافة مصروف",
+      "editTitle": "تعديل مصروف",
+      "save": "حفظ المصروف",
+      "cancel": "إلغاء",
+      "saving": "جاري الحفظ..."
+    }
+  }
+}

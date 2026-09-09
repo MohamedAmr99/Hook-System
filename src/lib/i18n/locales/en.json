@@ -1,0 +1,406 @@
+{
+  "layout": {
+    "dashboard": "Dashboard",
+    "products": "Products",
+    "inventory": "Inventory",
+    "orders": "Orders",
+    "returns": "Returns",
+    "purchases": "Purchases",
+    "finance": "Finance",
+    "media": "Media",
+    "tasks": "Tasks",
+    "notifications": "Notifications",
+    "logout": "Logout"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Overview of your business metrics",
+    "addProduct": "Add Product",
+    "newOrder": "New Order",
+    "totalRevenue": "Total Revenue",
+    "orders": "Orders",
+    "productsInStock": "Products in Stock",
+    "activeSessions": "Active Sessions",
+    "fromLastMonth": "from last month",
+    "acrossWarehouses": "across all warehouses",
+    "sinceLastHour": "since last hour",
+    "salesOverview": "Sales Overview",
+    "salesOverviewDesc": "Monthly revenue breakdown for the current year",
+    "lowInventoryAlerts": "Low Inventory Alerts",
+    "lowInventoryDesc": "Products that are running low on stock.",
+    "itemsLeft": "items left",
+    "minThreshold": "Min. Threshold",
+    "allStocked": "All products are well stocked.",
+    "damagedGoods": "Damaged Goods",
+    "totalClaimsValue": "Total Claims Value",
+    "viewFullInventory": "View full inventory"
+  },
+  "products": {
+    "status": {
+      "active": "Active / Published",
+      "inactive": "Inactive / Draft",
+      "pending": "Pending Sync",
+      "suspended": "Suspended"
+    },
+    "form": {
+      "save": "Save Product",
+      "saving": "Saving...",
+      "cancel": "Cancel",
+      "create": "Create New Product",
+      "edit": "Edit Product:",
+      "subtitle": "Fill in the operational, financial, and SEO data for your marketplace catalog.",
+      "tabs": {
+        "general": "General Info",
+        "pricing": "Pricing & Fees",
+        "inventory": "Inventory",
+        "marketplaces": "Marketplaces",
+        "seo": "SEO & AI",
+        "media": "Media Gallery"
+      },
+      "sections": {
+        "basicInfo": {
+          "title": "Basic Information",
+          "desc": "Core information about your product including naming, SKU cataloging, and taxonomy."
+        },
+        "basePricing": {
+          "title": "Base Pricing & Cost",
+          "desc": "Cost tracking and base selling price points. Crucial for ROI metrics."
+        },
+        "marketplacePricing": {
+          "title": "Marketplace Specific Price overrides",
+          "desc": "Alternative selling prices configured for external channels. Leave blank to default."
+        },
+        "fees": {
+          "title": "Fees & Deductions",
+          "desc": "Estimated operational overheads for this item. Helps estimate net margin."
+        },
+        "inventoryControls": {
+          "title": "Inventory & Stock Controls",
+          "desc": "Monitor warehouse counts, reserved volumes, and trigger alerts."
+        },
+        "channelSync": {
+          "title": "Channel Sync Status",
+          "desc": "Publishing statuses mapping this catalog to external ecommerce sites."
+        },
+        "listingMapping": {
+          "title": "Listing URL Mapping",
+          "desc": "Link mapping back to the product's live listings on the marketplaces."
+        },
+        "seoConfig": {
+          "title": "SEO Configuration",
+          "desc": "Optimize product listing detail pages for search engines."
+        },
+        "aiCopywriter": {
+          "title": "AI Content Copywriter",
+          "desc": "Leverage AI generation scripts to compose premium marketing descriptions."
+        },
+        "mainThumbnail": {
+          "title": "Main Thumbnail",
+          "desc": "Primary search results image. Will display on cards."
+        },
+        "gallery": {
+          "title": "Product Image Gallery",
+          "desc": "Upload supplementary gallery images displayed on detailed marketplace pages."
+        }
+      },
+      "fields": {
+        "productName": "Product Name *",
+        "slug": "Slug (Auto-generated) *",
+        "sku": "SKU *",
+        "barcode": "Barcode / EAN",
+        "brand": "Brand *",
+        "category": "Category *",
+        "subcategory": "Subcategory",
+        "description": "Product Description",
+        "costPrice": "Unit Cost Price (EGP) *",
+        "sellingPrice": "Base Selling Price (EGP) *",
+        "amazonPrice": "Amazon Price (EGP)",
+        "noonPrice": "Noon Price (EGP)",
+        "jumiaPrice": "Jumia Price (EGP)",
+        "shippingCost": "Estimated Shipping Cost (EGP)",
+        "packagingCost": "Packaging Overhead Cost (EGP)",
+        "adsCost": "Marketing / Ads Allocation (EGP)",
+        "marketplaceFees": "Platform Commission / Fees (EGP)",
+        "quantity": "Total In-Stock Units *",
+        "reservedQuantity": "Reserved Units (Committed/Sold)",
+        "minimumStockAlert": "Low Stock Alert Trigger Threshold",
+        "amazonStatus": "Amazon Status",
+        "noonStatus": "Noon Status",
+        "jumiaStatus": "Jumia Status",
+        "amazonUrl": "Amazon Listing URL",
+        "noonUrl": "Noon Listing URL",
+        "jumiaUrl": "Jumia Listing URL",
+        "metaTitle": "SEO Meta Title",
+        "metaDescription": "SEO Meta Description",
+        "keywords": "SEO Keywords (Comma Separated)",
+        "aiPrompt": "AI Instruction Prompt",
+        "aiGenerated": "Generated Content Preview"
+      },
+      "buttons": {
+        "generateCopy": "Generate Marketing Description",
+        "generating": "Generating Copy...",
+        "uploadThumbnail": "Upload Main Thumbnail Image",
+        "uploadGallery": "Upload Gallery Images (Up to 5)",
+        "previous": "Previous",
+        "next": "Next"
+      }
+    }
+  },
+  "orders": {
+    "title": "Orders",
+    "subtitle": "Manage your marketplace and direct orders.",
+    "newOrder": "New Order",
+    "totalOrders": "Total Orders",
+    "totalSales": "Total Sales",
+    "totalNetProfit": "Total Net Profit",
+    "search": "Search by Order ID...",
+    "columns": {
+      "orderId": "Order ID",
+      "platform": "Platform",
+      "status": "Status",
+      "items": "Products",
+      "sales": "Sales",
+      "netProfit": "Net Profit",
+      "date": "Date",
+      "actions": "Actions"
+    },
+    "statuses": {
+      "Pending": "Pending",
+      "Processing": "Processing",
+      "Shipped": "Shipped",
+      "Delivered": "Delivered",
+      "Cancelled": "Cancelled",
+      "Returned": "Returned",
+      "ReturnedToSeller": "Returned to Seller",
+      "ReturningToSeller": "Returning to Seller",
+      "RejectedByBuyer": "Rejected by Buyer"
+    },
+    "currency": "EGP",
+    "deleteConfirm": "Are you sure you want to delete this order? Stock will be reversed.",
+    "editOrder": "Edit Order",
+    "deleteOrder": "Delete Order",
+    "clearFilters": "Clear Filters",
+    "outOf": "out of",
+    "moreItems": "more",
+    "form": {
+      "title": "Create Order",
+      "editTitle": "Edit Order",
+      "subtitle": "Register a new order from a marketplace to track financials.",
+      "orderInfo": "Order Information",
+      "platformOrderId": "Platform Order ID",
+      "platformOrderIdPlaceholder": "e.g. 408-1234567-8901234",
+      "platform": "Platform",
+      "status": "Status",
+      "orderDate": "Order Date",
+      "productDetails": "Product Details",
+      "product": "Product",
+      "selectProduct": "Select a product...",
+      "inStock": "in stock",
+      "autoName": "Name (Auto-filled)",
+      "quantity": "Quantity",
+      "unitPrice": "Unit Price (Auto-filled)",
+      "financialBreakdown": "Financial Breakdown",
+      "financialNote": "Enter absolute positive numbers. Deductions are subtracted automatically.",
+      "customerPayments": "Customer Payments",
+      "productSales": "Product Sales (Gross)",
+      "shippingCredits": "Shipping Credits (Paid by customer)",
+      "promotions": "Promotions / Discounts",
+      "platformFees": "Platform Fees & Costs",
+      "sellingFees": "Selling Fees (Commission)",
+      "fulfillmentFees": "FBA / Fulfillment Fees",
+      "shippingCost": "Shipping Cost (Paid by you)",
+      "otherFees": "Other Transaction Fees",
+      "netPayout": "Calculated Net Payout",
+      "netPayoutNote": "This is your actual net profit/payout from this transaction.",
+      "cancel": "Cancel",
+      "save": "Save Order",
+      "saving": "Saving...",
+      "returns": {
+        "title": "Returns & Claims",
+        "isReturned": "Is Order Returned?",
+        "condition": "Returned Item Condition",
+        "conditions": {
+          "Intact": "Intact (Added to Stock)",
+          "Damaged": "Damaged",
+          "Missing Parts": "Missing Parts"
+        },
+        "claimState": "Compensation Claim State",
+        "claimStates": {
+          "Not Applicable": "Not Applicable",
+          "Under Verification": "Under Verification",
+          "Compensated": "Compensated",
+          "Rejected": "Rejected"
+        },
+        "claimId": "Claim ID (if any)",
+        "damagedGoodsValue": "Damaged Goods Value",
+        "notes": "Additional Notes"
+      }
+    }
+  },
+  "returns": {
+    "title": "Returns",
+    "subtitle": "Manage returned orders and SAFE-T claims.",
+    "columns": {
+      "date": "Date",
+      "orderId": "Order ID",
+      "item": "Item",
+      "quantity": "Quantity",
+      "status": "Status",
+      "safeT": "SAFE-T",
+      "returnReceived": "Return Received",
+      "payment": "Payment",
+      "price": "Price",
+      "net": "Net",
+      "condition": "Condition"
+    },
+    "safeT": {
+      "Under Investigation": "Under Investigation",
+      "Compensated": "Compensated",
+      "Denied": "Denied",
+      "None": "None"
+    },
+    "received": {
+      "yes": "Received",
+      "no": "-"
+    },
+    "payment": {
+      "Deducted": "Deducted",
+      "Refunded": "Refunded",
+      "Paid": "Paid",
+      "None": "-"
+    },
+    "conditions": {
+      "Damaged": "Damaged",
+      "Intact": "Intact",
+      "Customer Fault": "Customer Fault",
+      "Unknown": "Unknown"
+    }
+  },
+  "purchases": {
+    "title": "Purchases",
+    "subtitle": "Track your wholesale purchases and inventory inbound shipments.",
+    "newPurchase": "New Purchase",
+    "editPurchase": "Edit Purchase",
+    "totalSpent": "Total Spent",
+    "received": "Received",
+    "pending": "Pending",
+    "searchSupplier": "Search by Supplier...",
+    "columns": {
+      "supplier": "Supplier",
+      "products": "Products",
+      "status": "Status",
+      "itemsCost": "Items Cost",
+      "shipping": "Shipping",
+      "totalCost": "Total Cost",
+      "date": "Date"
+    },
+    "statuses": {
+      "Pending": "Pending (Not received yet)",
+      "Received": "Received (Adds to stock)",
+      "Cancelled": "Cancelled"
+    },
+    "form": {
+      "createTitle": "New Purchase",
+      "editTitle": "Edit Purchase",
+      "supplierName": "Supplier Name *",
+      "supplierPlaceholder": "e.g. Al-Ahram Wholesale",
+      "purchaseDate": "Purchase Date",
+      "status": "Status",
+      "productDetails": "Product Details",
+      "product": "Product *",
+      "searchProduct": "Search by name or SKU...",
+      "quantity": "Quantity *",
+      "unitCost": "Unit Cost (Wholesale) *",
+      "financials": "Financial Breakdown",
+      "additionalExpenses": "Additional Expenses",
+      "shippingFreight": "Shipping / Freight",
+      "otherCustoms": "Other (Customs, etc.)",
+      "totalPurchaseCost": "Total Purchase Cost",
+      "cancel": "Cancel",
+      "save": "Save Purchase",
+      "update": "Update Purchase",
+      "saving": "Saving..."
+    }
+  },
+  "upload": {
+    "dragDropHint": "Drag & drop images here, or click to browse. Max size 5MB.",
+    "maxFilesAlert": "You can only upload up to {{count}} files.",
+    "notImageAlert": "File \"{{name}}\" is not an image. Only image uploads are allowed.",
+    "fileSizeAlert": "File \"{{name}}\" exceeds the 5MB limit.",
+    "failed": "Failed"
+  },
+  "common": {
+    "copy": "Copy Listing Info",
+    "copySuccess": "Copied!",
+    "filterPlatform": "Platform",
+    "filterStatus": "Status",
+    "filterDate": "Date Range",
+    "allPlatforms": "All Platforms",
+    "allStatuses": "All Statuses",
+    "today": "Today",
+    "thisWeek": "This Week",
+    "thisMonth": "This Month",
+    "allTime": "All Time"
+  },
+  "finance": {
+    "title": "Financial Dashboard",
+    "subtitle": "Track revenues, settlements, and profitability.",
+    "importSettlement": "Import Amazon Settlement",
+    "grossSales": "Gross Sales",
+    "marketplaceFees": "Marketplace Fees",
+    "totalCogs": "Total COGS",
+    "expectedNet": "Expected Net Profit",
+    "settlementStatus": "Settlement Status",
+    "settledNet": "Settled Net",
+    "unsettledOrders": "Unsettled Orders",
+    "settledOrders": "Settled Orders",
+    "recentUnsettled": "Recent Unsettled Orders",
+    "uploadDragDrop": "Click to select file",
+    "uploadFormats": "Accepts .txt, .tsv from Amazon Seller Central",
+    "startImport": "Start Import",
+    "importSuccess": "Import Successful",
+    "importSummary": "Processed {{total}} records and updated {{matched}} orders.",
+    "expenses": "Expenses",
+    "totalPurchases": "Total Purchases",
+    "bottomLineProfit": "Bottom Line Profit",
+    "platformBreakdown": "Platform Breakdown",
+    "totalExpected": "Expected Total",
+    "totalSettled": "Settled Amount"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage global configuration and taxes.",
+    "saved": "Settings saved successfully!",
+    "tax": {
+      "title": "Tax & VAT Configuration",
+      "globalVat": "Global VAT Rate (%)",
+      "globalVatHelp": "This default rate is applied to products unless overridden by a category setting.",
+      "categoryVat": "Category Specific VAT Rates (%)"
+    }
+  },
+  "expenses": {
+    "title": "Expenses",
+    "subtitle": "Track and manage your operational expenses",
+    "newExpense": "New Expense",
+    "date": "Date",
+    "description": "Description",
+    "amount": "Amount",
+    "category": "Category",
+    "platform": "Platform (Optional)",
+    "categories": {
+      "packaging": "Packaging",
+      "shipping": "Shipping",
+      "transportation": "Transportation",
+      "marketing": "Marketing",
+      "salaries": "Salaries",
+      "other": "Other"
+    },
+    "form": {
+      "createTitle": "Add Expense",
+      "editTitle": "Edit Expense",
+      "save": "Save Expense",
+      "cancel": "Cancel",
+      "saving": "Saving..."
+    }
+  }
+}
