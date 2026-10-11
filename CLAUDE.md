@@ -80,3 +80,29 @@ Product -> Warehouse Stock -> Platform Listing (Amazon, Noon, Jumia, etc.)
 1. Strongly typed: Do not use `any`. Always use types defined in `src/features/*/types/`.
 2. When modifying inventory or order transitions, propose your plan first and verify transaction safety.
 3. Keep business logic in services/hooks, keeping UI components clean and focused.
+
+---
+
+## 🤖 Multi-agent routing
+
+Project agents live in `.claude/agents/`; detailed how-tos live in `.claude/skills/`. **If a skill conflicts with the rules above, this file wins.**
+
+| Agent | Owns |
+|---|---|
+| `orders-agent` | `features/orders`, `features/returns`, `features/platforms`, order import |
+| `inventory-agent` | `features/products`, `features/inventory`, `features/purchases` |
+| `finance-agent` | `features/finance`, `features/loans`, `features/settlements`, `features/calculator` |
+| `auth-settings-agent` | `features/auth`, `features/settings`, route guards, `app/` |
+| `ui-i18n-agent` | `src/shared`, `features/dashboard`, locales, Tailwind/RTL |
+| `firebase-security` | `src/lib/firebase`, rules, indexes, atomicity |
+| `reviewer` | read-only review of any diff (run last) |
+
+**Parallel rule:** run agents in parallel only when their file ownership doesn't overlap. Cross-slice changes (e.g. order → inventory → ledger) go: owner agent designs the contract first, then the other agents implement their side, then `reviewer`.
+
+## Commands
+`npm run dev` · `npm run build` (`tsc -b && vite build`, the real type check) · `npm run lint`
+
+## Known debt
+- `// @ts-nocheck` in `repository.ts`, `order.service.ts` and others — remove when touching them.
+- `storage.rules` allows public read/write; no `firestore.rules` in repo → `firebase-security` agent.
+- Root junk: `temp_*.txt`, `revert*.py`, `fix-ts-errors.cjs`, `scaffold.ps1`.
