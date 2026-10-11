@@ -13,7 +13,7 @@ export interface ActivityLog {
   userId: string;
   userDisplayName: string;
   actionType: "create" | "update" | "delete" | "archive" | "inventory_edit";
-  entityType: "product";
+  entityType: "product" | "order" | "return" | "settlement" | "system";
   entityId: string;
   entityName: string;
   description: string;

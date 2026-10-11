@@ -26,17 +26,18 @@ export function DashboardPage() {
   // Compute metrics from the real stats
   const totalRevenue = stats?.totalRevenue || 0;
   const totalOrders = stats?.ordersCount || 0;
-  const productsCount = stats?.productsCount || 0;  // عدد المنتجات الفعلي
+  const productsCount = stats?.productsCount || 0;
+  const productsInStock = stats?.productsInStock || 0;
   const totalDamagedGoods = stats?.totalDamagedGoods || 0;
 
   // Use the sales data from the real stats (or fallback to empty)
-  const salesData = stats?.charts.revenueOverview.map(item => ({
+  const salesData = stats?.charts?.revenueOverview?.map(item => ({
     name: item.date,
     total: item.revenue
   })) || [];
 
   // Low inventory alerts directly from the real stats
-  const allLowInventoryItems = stats?.charts.inventoryAlerts.map((p, index) => ({
+  const allLowInventoryItems = stats?.charts?.inventoryAlerts?.map((p, index) => ({
     id: `alert-${index}`,
     name: p.name,
     sku: p.name,
@@ -99,9 +100,9 @@ export function DashboardPage() {
           icon={<ShoppingCart size={20} />}
         />
         <StatsCard
-          title={t("dashboard.productsInStock")}
+          title={t("dashboard.products", "المنتجات")}
           value={productsCount.toString()}
-          description={t("dashboard.acrossWarehouses")}
+          description={`${productsInStock} ${t("dashboard.acrossWarehouses", "قطعة في المخزون")}`}
           trend={{ value: 0, type: "neutral" }}
           icon={<Package size={20} />}
         />

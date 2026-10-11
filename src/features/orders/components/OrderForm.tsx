@@ -4,14 +4,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { v4 as uuidv4 } from "uuid";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { OrderInput, OrderSchema } from "../schemas/order.schema";
 import { useStore } from "@/shared/store/useStore";
 import { useProducts, PRODUCT_QUERY_KEYS } from "@/features/products/hooks/useProducts";
-import { ProductService } from "@/features/products/services/product.service";
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import { Order, OrderStatus, PaymentStatus } from "../types/order.types";
+import { Order, OrderStatus } from "../types/order.types";
 import { usePlatforms } from "@/features/platforms/hooks/usePlatforms";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, AlertCircle } from "lucide-react";
+import { createOrderAtomic, updateOrderAtomic } from "../services/inventory.service";
 
 interface OrderFormProps {
   initialData?: Order;
@@ -19,7 +20,6 @@ interface OrderFormProps {
 }
 
 const ORDER_STATUSES: OrderStatus[] = ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"];
-const PAYMENT_STATUSES: PaymentStatus[] = ["Unpaid", "Paid", "PartiallyRefunded", "Refunded"];
 
 const inputCls = "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:bg-muted disabled:text-muted-foreground";
 const smallInputCls = "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -36,6 +36,7 @@ export function OrderForm({ initialData, onSuccess }: OrderFormProps) {
   
   const [productSearch, setProductSearch] = useState<Record<number, string>>({});
   const [openDropdowns, setOpenDropdowns] = useState<Record<number, boolean>>({});
+  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,7 +49,7 @@ export function OrderForm({ initialData, onSuccess }: OrderFormProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const { register, handleSubmit, watch, formState: { errors, isSubmitting }, setValue, control } = useForm<OrderInput>({
+  const { register, handleSubmit, watch, formState: { errors }, setValue, control } = useForm<OrderInput>({
     resolver: zodResolver(OrderSchema) as any,
     defaultValues: initialData ? {
       platform: initialData.platform,
@@ -71,6 +72,9 @@ export function OrderForm({ initialData, onSuccess }: OrderFormProps) {
       otherFees: initialData.otherFees,
       netPayoutExpected: initialData.netPayoutExpected,
       settlementId: initialData.settlementId || "",
+      paidAmount: initialData.paidAmount !== undefined ? initialData.paidAmount : (initialData.paymentStatus === "Paid" ? initialData.totalRevenue : 0),
+      refundedAmount: initialData.refundedAmount !== undefined ? initialData.refundedAmount : 0,
+      netCollectedAmount: initialData.netCollectedAmount !== undefined ? initialData.netCollectedAmount : ((initialData.paidAmount || (initialData.paymentStatus === "Paid" ? initialData.totalRevenue : 0)) - (initialData.refundedAmount || 0)),
     } : {
       platformOrderId: "",
       platform: "",
@@ -92,6 +96,9 @@ export function OrderForm({ initialData, onSuccess }: OrderFormProps) {
       otherFees: 0,
       netPayoutExpected: 0,
       settlementId: "",
+      paidAmount: 0,
+      refundedAmount: 0,
+      netCollectedAmount: 0,
     }
   });
 
@@ -168,61 +175,124 @@ export function OrderForm({ initialData, onSuccess }: OrderFormProps) {
 
   const currency = t("orders.currency", "EGP");
 
+  // Helper to compute available stock and validation limits per item
+  const getItemStockInfo = (index: number) => {
+    const currentItem = items[index];
+    if (!currentItem) return { available: 0, maxAllowed: 0, isOutOfStock: false, isOverStock: false };
+
+    const selectedProd = products.find(p => p.id === currentItem.productId || p.sku === currentItem.sku);
+    if (!selectedProd) return { available: 0, maxAllowed: 0, isOutOfStock: false, isOverStock: false };
+
+    const baseAvailable =
+      Number(selectedProd.quantity || 0) -
+      Number(selectedProd.reservedQuantity || 0) -
+      Number(selectedProd.unavailableQuantity || 0);
+
+    const oldItem = initialData?.items?.find(i => i.productId === selectedProd.id || i.sku === selectedProd.sku);
+    const oldQty = oldItem ? Number(oldItem.quantity || 0) : 0;
+
+    const maxAllowed = Math.max(0, baseAvailable) + oldQty;
+    const requestedQty = Number(currentItem.quantity || 0);
+
+    return {
+      available: Math.max(0, baseAvailable),
+      maxAllowed,
+      isOutOfStock: maxAllowed <= 0,
+      isOverStock: requestedQty > maxAllowed,
+      productName: selectedProd.productName,
+    };
+  };
+
+  // Check if entire form has any overstock violations
+  const hasAnyStockError = items.some((_, idx) => {
+    const info = getItemStockInfo(idx);
+    return info.isOverStock || (info.isOutOfStock && Number(items[idx]?.quantity || 0) > 0);
+  });
+
   const onSubmit = async (data: OrderInput) => {
-    const platName = platforms.find(p => p.id === data.platform)?.name || data.platform;
-    const finalData = { ...data, platform: platName };
-
-    if (initialData) {
-      const oldOrder = initialData;
-      updateOrder(oldOrder.id, { ...finalData, updatedAt: Date.now(), updatedBy: user?.uid } as any);
-
-      if (user) {
-        for (const newItem of finalData.items) {
-          const oldItem = oldOrder.items.find(i => i.productId === newItem.productId);
-          const oldQty = oldItem?.quantity ?? 0;
-          const diff = newItem.quantity - oldQty; 
-          if (diff !== 0) {
-            const firebaseProduct = products.find(p => p.id === newItem.productId);
-            if (firebaseProduct) {
-              await ProductService.updateProduct(
-                firebaseProduct.id,
-                { quantity: Math.max(0, (firebaseProduct.quantity || 0) - diff) },
-                user.uid,
-                user.displayName ?? "System"
-              );
-            }
-          }
-        }
-        queryClient.invalidateQueries({ queryKey: PRODUCT_QUERY_KEYS.all });
-      }
-    } else {
-      const newOrder: Order = {
-        ...finalData,
-        id: uuidv4(),
-        items: finalData.items.map(i => ({...i, id: uuidv4()})),
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        createdBy: user?.uid || "",
-        updatedBy: user?.uid || "",
-      };
-      addOrder(newOrder);
-
-      if (user) {
-        for (const item of finalData.items) {
-          const firebaseProduct = products.find(p => p.id === item.productId);
-          if (firebaseProduct) {
-            await ProductService.updateProduct(
-              firebaseProduct.id,
-              { quantity: Math.max(0, (firebaseProduct.quantity || 0) - item.quantity) },
-              user.uid,
-              user.displayName ?? "System"
-            );
-          }
-        }
-        queryClient.invalidateQueries({ queryKey: PRODUCT_QUERY_KEYS.all });
+    // 1. Client-Side Stock Validation Check
+    for (let i = 0; i < data.items.length; i++) {
+      const info = getItemStockInfo(i);
+      const qty = Number(data.items[i].quantity || 0);
+      if (qty > info.maxAllowed) {
+        toast.error(
+          `المخزون المتاح لا يكفي للمنتج "${info.productName || data.items[i].name}". المتاح: ${info.maxAllowed}، المطلوب: ${qty}`
+        );
+        return;
       }
     }
-    onSuccess();
+
+    const platName = platforms.find(p => p.id === data.platform)?.name || data.platform;
+    const paid = Number(data.paidAmount ?? (data.paymentStatus === "Paid" ? data.totalRevenue : 0));
+    const refunded = Number(data.refundedAmount ?? 0);
+    const netCollected = paid - refunded;
+
+    const finalData = {
+      ...data,
+      platform: platName,
+      paidAmount: paid,
+      refundedAmount: refunded,
+      netCollectedAmount: netCollected,
+    };
+
+    setIsSubmittingForm(true);
+
+    try {
+      if (initialData) {
+        const updatedOrderFull: Order = {
+          ...initialData,
+          ...finalData,
+          items: finalData.items.map((i, idx) => ({
+            ...i,
+            id: (i as any).id || initialData.items[idx]?.id || uuidv4(),
+          })),
+          updatedAt: Date.now(),
+          updatedBy: user?.uid || "",
+        };
+
+        if (user) {
+          await updateOrderAtomic({
+            oldOrder: initialData,
+            updatedOrder: updatedOrderFull,
+            userId: user.uid,
+            userDisplayName: user.displayName ?? "System",
+          });
+        }
+
+        updateOrder(initialData.id, updatedOrderFull);
+        toast.success("تم تحديث الطلب والمخزون بنجاح");
+      } else {
+        const newOrder: Order = {
+          ...finalData,
+          id: uuidv4(),
+          items: finalData.items.map(i => ({ ...i, id: uuidv4() })),
+          stockState: undefined,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          createdBy: user?.uid || "",
+          updatedBy: user?.uid || "",
+        };
+
+        if (user) {
+          await createOrderAtomic({
+            order: newOrder,
+            userId: user.uid,
+            userDisplayName: user.displayName ?? "System",
+          });
+        }
+
+        addOrder(newOrder);
+        toast.success("تم إنشاء الطلب وحجز المخزون بنجاح");
+      }
+
+      queryClient.invalidateQueries({ queryKey: PRODUCT_QUERY_KEYS.all });
+      onSuccess();
+    } catch (err: any) {
+      console.error("Order submission failed:", err);
+      toast.error(err?.message || "فشل حفظ الطلب، يرجى التحقق من المخزون والبيانات");
+    } finally {
+      setIsSubmittingForm(false);
+    }
   };
 
   return (
@@ -231,6 +301,7 @@ export function OrderForm({ initialData, onSuccess }: OrderFormProps) {
       <section className="space-y-4">
         <h3 className="text-lg font-semibold border-b pb-2">{t("orders.form.orderInfo")}</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Platform Order ID */}
           <div>
             <label className="block text-sm font-medium mb-1">
               {t("orders.form.platformOrderId")} <span className="text-destructive">*</span>
@@ -238,66 +309,77 @@ export function OrderForm({ initialData, onSuccess }: OrderFormProps) {
             <input
               {...register("platformOrderId")}
               className={inputCls}
-              placeholder={t("orders.form.platformOrderIdPlaceholder")}
+              placeholder="e.g. 408-1234567-1234567"
             />
             {errors.platformOrderId && (
               <span className="text-xs text-destructive">{errors.platformOrderId.message}</span>
             )}
           </div>
 
+          {/* Platform */}
           <div>
-            <label className="block text-sm font-medium mb-1">{t("orders.form.platform")}</label>
+            <label className="block text-sm font-medium mb-1">
+              {t("orders.form.platform")} <span className="text-destructive">*</span>
+            </label>
             <select {...register("platform")} className={inputCls}>
-              <option value="">-- اختر المنصة --</option>
-              {platforms.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+              <option value="">{t("orders.form.selectPlatform")}</option>
+              {platforms.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
             </select>
             {errors.platform && (
               <span className="text-xs text-destructive">{errors.platform.message}</span>
             )}
           </div>
 
+          {/* Order Status */}
           <div>
-            <label className="block text-sm font-medium mb-1">Order Status</label>
+            <label className="block text-sm font-medium mb-1">{t("orders.form.status")}</label>
             <select {...register("status")} className={inputCls}>
               {ORDER_STATUSES.map(s => (
-                <option key={s} value={s}>{t(`orders.statuses.${s}`, s)}</option>
-              ))}
-            </select>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-1">Payment Status</label>
-            <select {...register("paymentStatus")} className={inputCls}>
-              {PAYMENT_STATUSES.map(s => (
-                <option key={s} value={s}>{s}</option>
+                <option key={s} value={s}>{t(`orders.statuses.${s}`)}</option>
               ))}
             </select>
           </div>
 
+          {/* Payment Status */}
+          <div>
+            <label className="block text-sm font-medium mb-1">حالة الدفع</label>
+            <select {...register("paymentStatus")} className={inputCls}>
+              <option value="Unpaid">في انتظار الدفع (Unpaid)</option>
+              <option value="Paid">تم الدفع (Paid)</option>
+              <option value="PartiallyRefunded">مسترد جزئياً (Partially Refunded)</option>
+              <option value="Refunded">مسترد بالكامل (Refunded)</option>
+            </select>
+          </div>
+
+          {/* Order Date */}
           <div>
             <label className="block text-sm font-medium mb-1">{t("orders.form.orderDate")}</label>
             <input
               type="date"
-              value={new Date(watch("orderDate") || Date.now()).toISOString().substring(0, 10)}
-              onChange={(e) => setValue("orderDate", new Date(e.target.value).getTime())}
               className={inputCls}
+              defaultValue={new Date().toISOString().split('T')[0]}
+              onChange={(e) => {
+                setValue("orderDate", new Date(e.target.value).getTime());
+              }}
             />
           </div>
         </div>
       </section>
 
-      {/* 2. Product Details */}
+      {/* 2. Products */}
       <section className="space-y-4">
         <div className="flex justify-between items-center border-b pb-2">
-           <h3 className="text-lg font-semibold">{t("orders.form.productDetails")}</h3>
-           <button
-             type="button"
-             onClick={() => append({ productId: "", sku: "", name: "", quantity: 1, unitPrice: 0, unitCogs: 0, discount: 0, tax: 0 })}
-             className="flex items-center gap-1 text-sm bg-primary/10 text-primary hover:bg-primary/20 px-3 py-1.5 rounded-md transition-colors"
-           >
-             <Plus size={16} />
-             إضافة منتج
-           </button>
+          <h3 className="text-lg font-semibold">{t("orders.form.productsSection")}</h3>
+          <button
+            type="button"
+            onClick={() => append({ productId: "", sku: "", name: "", quantity: 1, unitPrice: 0, unitCogs: 0, discount: 0, tax: 0 })}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold bg-secondary text-secondary-foreground hover:bg-secondary/80 h-8 px-3 rounded-md"
+          >
+            <Plus size={14} />
+            {t("orders.form.addProduct")}
+          </button>
         </div>
         
         <div className="space-y-4" ref={dropdownRef}>
@@ -308,6 +390,8 @@ export function OrderForm({ initialData, onSuccess }: OrderFormProps) {
                const q = currentSearch.toLowerCase();
                return p.productName.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
              });
+
+             const stockInfo = getItemStockInfo(index);
 
              return (
                <div key={field.id} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start bg-secondary/5 p-4 rounded-lg border">
@@ -329,10 +413,16 @@ export function OrderForm({ initialData, onSuccess }: OrderFormProps) {
                    
                    {openDropdowns[index] && (
                      <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto">
-                       {filteredProducts.map(p => (
+                       {filteredProducts.map(p => {
+                         const pAvail = Math.max(0, Number(p.quantity || 0) - Number(p.reservedQuantity || 0) - Number(p.unavailableQuantity || 0));
+                         const isOutOfStock = pAvail <= 0;
+
+                         return (
                            <div 
                              key={p.sku}
-                             className="px-3 py-2 cursor-pointer hover:bg-accent text-sm flex justify-between"
+                             className={`px-3 py-2 cursor-pointer text-sm flex justify-between items-center ${
+                               isOutOfStock ? "bg-muted/40 hover:bg-muted/60 opacity-80" : "hover:bg-accent"
+                             }`}
                              onClick={() => {
                                setValue(`items.${index}.productId`, p.id);
                                setValue(`items.${index}.sku`, p.sku, { shouldValidate: true });
@@ -343,10 +433,20 @@ export function OrderForm({ initialData, onSuccess }: OrderFormProps) {
                                setOpenDropdowns(prev => ({ ...prev, [index]: false }));
                              }}
                            >
-                             <span className="truncate pr-2">{p.productName} ({p.sku})</span>
-                             <span className="text-muted-foreground whitespace-nowrap text-xs">{p.quantity} متاح</span>
+                             <div className="flex-1 min-w-0 pr-1">
+                                <div className="font-medium text-foreground truncate">{p.productName}</div>
+                                <div className="text-xs text-muted-foreground truncate">SKU: {p.sku}</div>
+                              </div>
+                             <span className={`text-xs px-2 py-0.5 rounded ${
+                               isOutOfStock 
+                                 ? "bg-destructive/10 text-destructive font-semibold" 
+                                 : "bg-primary/10 text-primary font-medium"
+                             }`}>
+                               {pAvail} متاح
+                             </span>
                            </div>
-                       ))}
+                         );
+                       })}
                        {filteredProducts.length === 0 && (
                          <div className="px-3 py-2 text-sm text-muted-foreground">لا يوجد منتجات</div>
                        )}
@@ -370,13 +470,26 @@ export function OrderForm({ initialData, onSuccess }: OrderFormProps) {
 
                  {/* Quantity */}
                  <div className="md:col-span-2">
-                   <label className="block text-sm font-medium mb-1">الكمية</label>
+                   <div className="flex justify-between items-center mb-1">
+                     <label className="block text-sm font-medium">الكمية</label>
+                     {items[index]?.sku && (
+                       <span className={`text-[11px] font-medium ${stockInfo.isOverStock ? "text-destructive" : "text-muted-foreground"}`}>
+                         (المتاح: {stockInfo.maxAllowed})
+                       </span>
+                     )}
+                   </div>
                    <input
                      type="number"
                      min={1}
                      {...register(`items.${index}.quantity` as const, { valueAsNumber: true })}
-                     className={inputCls}
+                     className={`${inputCls} ${stockInfo.isOverStock ? "border-destructive focus-visible:ring-destructive" : ""}`}
                    />
+                   {stockInfo.isOverStock && (
+                     <div className="flex items-center gap-1 text-[11px] text-destructive font-medium mt-1">
+                       <AlertCircle size={12} />
+                       <span>تتجاوز المخزون المتاح ({stockInfo.maxAllowed})</span>
+                     </div>
+                   )}
                  </div>
 
                  {/* Unit Price */}
@@ -410,66 +523,138 @@ export function OrderForm({ initialData, onSuccess }: OrderFormProps) {
       <section className="space-y-4">
         <h3 className="text-lg font-semibold border-b pb-2">{t("orders.form.financialBreakdown")}</h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="space-y-3 p-4 bg-emerald-500/5 rounded-lg border border-emerald-500/20">
-            <h4 className="font-medium text-emerald-600 dark:text-emerald-400">
-              {t("orders.form.customerPayments")}
-            </h4>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Customer Payments */}
+          <div className="space-y-3 p-4 bg-secondary/5 rounded-lg border">
+            <h4 className="font-medium text-sm text-primary">مدفوعات العميل</h4>
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">
-                Subtotal ({currency})
-              </label>
-              <input type="number" step="0.01" {...register("subtotal", { valueAsNumber: true })} className={smallInputCls} />
+              <label className="block text-xs text-muted-foreground mb-1">المجموع الفرعي ({currency})</label>
+              <input
+                type="number"
+                step="0.01"
+                {...register("subtotal", { valueAsNumber: true })}
+                className={smallInputCls}
+              />
             </div>
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">
-                Shipping Collected ({currency})
-              </label>
-              <input type="number" step="0.01" {...register("shippingCollected", { valueAsNumber: true })} className={smallInputCls} />
+              <label className="block text-xs text-muted-foreground mb-1">شحن محصل ({currency})</label>
+              <input
+                type="number"
+                step="0.01"
+                {...register("shippingCollected", { valueAsNumber: true })}
+                className={smallInputCls}
+              />
             </div>
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">
-                Discounts ({currency})
-              </label>
-              <input type="number" step="0.01" {...register("discountTotal", { valueAsNumber: true })} className={smallInputCls} />
+              <label className="block text-xs text-muted-foreground mb-1">خصومات ({currency})</label>
+              <input
+                type="number"
+                step="0.01"
+                {...register("discountTotal", { valueAsNumber: true })}
+                className={smallInputCls}
+              />
             </div>
           </div>
 
-          <div className="space-y-3 p-4 bg-destructive/5 rounded-lg border border-destructive/20 relative">
-            <h4 className="font-medium text-destructive">{t("orders.form.platformFees")}</h4>
+          {/* Platform Fees */}
+          <div className="space-y-3 p-4 bg-secondary/5 rounded-lg border">
+            <h4 className="font-medium text-sm text-destructive">رسوم المنصة والتكاليف</h4>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">عمولة البيع ({currency})</label>
+              <input
+                type="number"
+                step="0.01"
+                {...register("sellingFees", { valueAsNumber: true })}
+                className={smallInputCls}
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">رسوم التخزين/الشحن FBA ({currency})</label>
+              <input
+                type="number"
+                step="0.01"
+                {...register("fulfillmentFees", { valueAsNumber: true })}
+                className={smallInputCls}
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">رسوم أخرى ({currency})</label>
+              <input
+                type="number"
+                step="0.01"
+                {...register("otherFees", { valueAsNumber: true })}
+                className={smallInputCls}
+              />
+            </div>
+          </div>
+
+          {/* Collections & Payments */}
+          <div className="space-y-3 p-4 bg-secondary/5 rounded-lg border">
+            <h4 className="font-medium text-sm text-blue-600 dark:text-blue-400">التحصيل والمدفوعات</h4>
             <div>
               <label className="block text-xs text-muted-foreground mb-1">
-                {t("orders.form.sellingFees")} ({currency})
+                المبلغ المحصل فعلياً ({currency})
               </label>
-              <input 
-                type="number" 
-                step="0.01" 
-                {...register("sellingFees", { valueAsNumber: true })} 
-                className={`${smallInputCls} border-primary focus-visible:ring-primary`} 
+              <input
+                type="number"
+                step="0.01"
+                min={0}
+                {...register("paidAmount", { valueAsNumber: true })}
+                className={smallInputCls}
+                placeholder="0.00"
               />
             </div>
             <div>
               <label className="block text-xs text-muted-foreground mb-1">
-                {t("orders.form.fulfillmentFees")} ({currency})
+                المبلغ المسترد للعميل ({currency})
               </label>
-              <input type="number" step="0.01" {...register("fulfillmentFees", { valueAsNumber: true })} className={smallInputCls} />
+              <input
+                type="number"
+                step="0.01"
+                min={0}
+                {...register("refundedAmount", { valueAsNumber: true })}
+                className={smallInputCls}
+                placeholder="0.00"
+              />
             </div>
-            <div>
-              <label className="block text-xs text-muted-foreground mb-1">
-                {t("orders.form.otherFees")} ({currency})
-              </label>
-              <input type="number" step="0.01" {...register("otherFees", { valueAsNumber: true })} className={smallInputCls} />
+            <div className="pt-1">
+              <span className="block text-[11px] text-muted-foreground">صافي المحصل:</span>
+              <span className="text-sm font-bold text-foreground">
+                {((watch("paidAmount") || 0) - (watch("refundedAmount") || 0)).toFixed(2)} {currency}
+              </span>
             </div>
           </div>
 
-          <div className="flex flex-col items-center justify-center p-6 bg-secondary/10 rounded-lg border">
-            <h4 className="text-sm font-medium text-muted-foreground mb-2">Net Expected</h4>
-            <div className={`text-3xl font-bold ${watch("netPayoutExpected") >= 0 ? "text-emerald-500" : "text-destructive"}`}>
-              {watch("netPayoutExpected").toFixed(2)} {currency}
+          {/* Payout & Net Profit */}
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col items-center justify-center p-3 bg-secondary/10 rounded-lg border">
+              <h4 className="text-xs font-medium text-muted-foreground mb-0.5">صافي التحويل (Payout)</h4>
+              <div className={`text-lg font-bold ${watch("netPayoutExpected") >= 0 ? "text-emerald-500" : "text-destructive"}`}>
+                {watch("netPayoutExpected").toFixed(2)} {currency}
+              </div>
+              <p className="text-[9px] text-center text-muted-foreground mt-0.5">
+                الإيرادات - العمولة والرسوم
+              </p>
             </div>
-            <p className="text-xs text-center text-muted-foreground mt-4 max-w-[200px]">
-              Revenue - Deductions
-            </p>
+            {(() => {
+              const netProf = watch("netPayoutExpected") - watch("totalCogs");
+              const totalRev = watch("totalRevenue") || watch("subtotal") || 0;
+              const marginPct = totalRev > 0 ? (netProf / totalRev) * 100 : 0;
+              return (
+                <div className="flex flex-col items-center justify-center p-3 bg-primary/10 rounded-lg border border-primary/20">
+                  <h4 className="text-xs font-medium text-primary mb-0.5">صافي الربح (Net Profit)</h4>
+                  <div className={`text-xl font-bold ${netProf >= 0 ? "text-emerald-600" : "text-destructive"}`}>
+                    {netProf.toFixed(2)} {currency}
+                  </div>
+                  <div className={`text-[11px] font-semibold mt-1 px-2.5 py-0.5 rounded-full ${marginPct >= 0 ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" : "bg-destructive/15 text-destructive border border-destructive/20"}`}>
+                    متوقع الربح: {marginPct.toFixed(1)}% من سعر أمر الشراء
+                  </div>
+                  <p className="text-[9px] text-center text-muted-foreground mt-1">
+                    صافي التحويل - تكلفة المنتج (COGS)
+                  </p>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </section>
@@ -485,10 +670,10 @@ export function OrderForm({ initialData, onSuccess }: OrderFormProps) {
         </button>
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmittingForm || hasAnyStockError}
           className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 disabled:opacity-50"
         >
-          {isSubmitting ? t("orders.form.saving", "جاري الحفظ...") : t("orders.form.save", "حفظ")}
+          {isSubmittingForm ? t("orders.form.saving", "جاري الحفظ...") : t("orders.form.save", "حفظ")}
         </button>
       </div>
     </form>

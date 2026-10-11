@@ -26,6 +26,7 @@ export interface Product {
   // Inventory
   quantity: number;
   reservedQuantity: number;
+  unavailableQuantity?: number;
   minimumStockAlert: number;
 
   // Marketplace

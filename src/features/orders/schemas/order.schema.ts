@@ -4,7 +4,7 @@ export const PlatformSchema = z.string().min(1, "Platform is required");
 
 export const OrderStatusSchema = z.enum(["Pending", "Processing", "Shipped", "Delivered", "Cancelled", "Returned", "ReturnedToSeller", "ReturningToSeller", "RejectedByBuyer"]);
 export const PaymentStatusSchema = z.enum(["Unpaid", "Paid", "PartiallyRefunded", "Refunded"]);
-export const FinancialStatusSchema = z.enum(["Unsettled", "PendingSettlement", "PartiallySettled", "Settled", "Disputed"]);
+export const FinancialStatusSchema = z.enum(["Unsettled", "PendingSettlement", "PartiallySettled", "Settled", "Disputed", "Compensated", "PartiallyCompensated", "NotCompensated"]);
 export const ReturnStatusSchema = z.enum(["None", "Requested", "Returned", "Damaged", "LostInTransit"]);
 
 export const OrderItemSchema = z.object({
@@ -48,6 +48,11 @@ export const OrderSchema = z.object({
   otherFees: z.coerce.number().default(0),
 
   netPayoutExpected: z.coerce.number().default(0),
+
+  // Payments & Collections
+  paidAmount: z.coerce.number().optional(),
+  refundedAmount: z.coerce.number().optional(),
+  netCollectedAmount: z.coerce.number().optional(),
 
   // Returns Financials
   returnShippingCost: z.coerce.number().optional(),

@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Plus, Trash2, Pencil, Filter, X, UploadCloud } from "lucide-react";
+import { Plus, Trash2, Pencil, Filter, X, UploadCloud, RefreshCw, RotateCcw, Scale } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/shared/components/DataTable";
@@ -17,6 +17,10 @@ import {
 import { Button } from "@/shared/components/ui/button";
 import { cn } from "@/shared/lib/utils";
 import { OrderImportModal } from "../components/OrderImportModal";
+import { useOrders, deleteOrderFromFirestore, patchOrderInFirestore } from "../hooks/useOrders";
+import { calculateOrderFinancials } from "@/shared/utils/orderCalculations";
+import { useReturns } from "@/features/returns/hooks/useReturns";
+import { ReturnCreateDialog } from "@/features/returns/components/ReturnCreateDialog";
 
 const ACTIVE_STATUSES = ["Pending", "Processing", "Shipped", "Delivered"] as const;
 const RETURN_STATUSES = ["Returned", "ReturnedToSeller", "ReturningToSeller", "RejectedByBuyer"] as const;
@@ -43,13 +47,16 @@ function isInDateRange(dateValue: string | Date | number, range: DateFilter): bo
 
 export function OrderListPage() {
   const { t } = useTranslation();
-  const orders = useStore(state => state.orders);
+  const { data: orders = [], isLoading: isLoadingOrders } = useOrders();
+  const { returns = [] } = useReturns();
+  const updateOrder = useStore(state => state.updateOrder);
   const updateOrderStatus = useStore(state => state.updateOrderStatus);
   const deleteOrder = useStore(state => state.deleteOrder);
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const { data: products = [] } = useProducts();
   const [showImportModal, setShowImportModal] = React.useState(false);
+  const [selectedReturnOrder, setSelectedReturnOrder] = React.useState<Order | null>(null);
 
   // Filters
   const [platformFilter, setPlatformFilter] = React.useState<string>("");
@@ -77,12 +84,14 @@ export function OrderListPage() {
     setDateFilter("all");
   };
 
-  // Handles all stock sync scenarios when status changes
   const handleStatusChange = async (order: Order, newStatus: OrderStatus) => {
     const oldStatus = order.status;
     if (oldStatus === newStatus) return;
 
+    // Update Zustand (immediate UI)
     updateOrderStatus(order.id, newStatus);
+    // Persist to Firestore
+    patchOrderInFirestore(order.id, { status: newStatus });
 
     if (!user) return;
     const ctx = { order, products, userId: user.uid, userDisplayName: user.displayName ?? "System" };
@@ -102,10 +111,30 @@ export function OrderListPage() {
     queryClient.invalidateQueries({ queryKey: PRODUCT_QUERY_KEYS.all });
   };
 
+  const handlePaymentStatusChange = (order: Order, newStatus: any) => {
+    const updates: Partial<Order> = { paymentStatus: newStatus };
+    if (newStatus === "Paid") {
+      if (!order.paidAmount || order.paidAmount === 0) {
+        updates.paidAmount = order.totalRevenue;
+      }
+    } else if (newStatus === "Unpaid") {
+      updates.paidAmount = 0;
+    } else if (newStatus === "Refunded") {
+      updates.refundedAmount = order.paidAmount || order.totalRevenue;
+    }
+    // Update Zustand (immediate UI)
+    updateOrder(order.id, updates);
+    // Persist to Firestore
+    patchOrderInFirestore(order.id, updates as Record<string, unknown>);
+  };
+
   const handleDelete = async (order: Order) => {
     if (!window.confirm(t("orders.deleteConfirm"))) return;
 
+    // Remove from Zustand (immediate UI)
     deleteOrder(order.id);
+    // Remove from Firestore (persisted)
+    deleteOrderFromFirestore(order.id);
 
     if (!user) return;
     await onOrderDeleted({
@@ -122,10 +151,10 @@ export function OrderListPage() {
     Pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
     Processing: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
     Shipped: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
-    Delivered: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+    Delivered: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400",
     Cancelled: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-    Returned: "bg-gray-100 text-gray-700 dark:bg-gray-800/40 dark:text-gray-300",
-    ReturnedToSeller: "bg-gray-100 text-gray-700 dark:bg-gray-800/40 dark:text-gray-300",
+    Returned: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
+    ReturnedToSeller: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
     ReturningToSeller: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
     RejectedByBuyer: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
   };
@@ -190,7 +219,7 @@ export function OrderListPage() {
           <div className="space-y-0.5 max-w-[180px]">
             {items.slice(0, 2).map((item, i) => (
               <div key={i} className="text-xs text-foreground/80 truncate">
-                <span className="font-semibold">{item.quantity}×</span> {item.name}
+                <span className="font-semibold">{item.name}</span> <span className="text-[11px] text-muted-foreground">x{item.quantity}</span>
               </div>
             ))}
             {items.length > 2 && (
@@ -203,19 +232,40 @@ export function OrderListPage() {
     {
       accessorKey: "totalRevenue",
       header: t("orders.columns.sales"),
-      cell: ({ row }) => (
-        <span className="font-medium">{Number(row.original.totalRevenue || 0).toFixed(2)} {t("orders.currency")}</span>
-      )
+      cell: ({ row }) => {
+        const returnDoc = returns.find(r => r.orderId === row.original.id);
+        const fin = calculateOrderFinancials(row.original, returnDoc);
+        const origRev = Number(row.original.totalRevenue || 0);
+        return (
+          <div className="flex flex-col">
+            <span className="font-bold text-xs">{fin.effectiveRevenue.toFixed(2)} ج.م</span>
+            {fin.effectiveRevenue !== origRev && (
+              <span className="text-[10px] text-muted-foreground line-through font-mono">
+                {origRev.toFixed(2)} ج.م
+              </span>
+            )}
+          </div>
+        );
+      }
     },
     {
       accessorKey: "netPayoutExpected",
       header: t("orders.columns.netProfit"),
       cell: ({ row }) => {
-        const net = Number(row.original.netPayoutExpected || 0);
+        const returnDoc = returns.find(r => r.orderId === row.original.id);
+        const fin = calculateOrderFinancials(row.original, returnDoc);
+        const net = fin.finalNetProfit;
         return (
-          <span className={`font-bold ${net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-            {net.toFixed(2)} {t("orders.currency")}
-          </span>
+          <div className="flex flex-col">
+            <span className={`font-bold text-xs ${net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+              {net.toFixed(2)} ج.م
+            </span>
+            {fin.hasReturn && (
+              <span className="text-[10px] text-muted-foreground font-mono">
+                (عند المرتجع: {net.toFixed(2)})
+              </span>
+            )}
+          </div>
         );
       }
     },
@@ -223,36 +273,34 @@ export function OrderListPage() {
       accessorKey: "orderDate",
       header: t("orders.columns.date"),
       cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">
-          {new Date(row.original.orderDate).toLocaleDateString()}
+        <span className="text-xs text-muted-foreground">
+          {new Date(row.original.orderDate).toLocaleDateString("zh-Hans-CN").replace(/\//g, "/")}
         </span>
       )
     },
     {
-      accessorKey: "financialStatus",
-      header: t("returns.columns.financialStatus", "الحالة المالية"),
+      accessorKey: "paymentStatus",
+      header: "حالة الدفع والتحصيل",
       cell: ({ row }) => {
-        const finStatus = row.original.financialStatus || "Unsettled";
-        const isSettled = finStatus === "Settled";
-        const isPending = finStatus === "PendingSettlement" || finStatus === "PartiallySettled";
-        
-        let colorClass = "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
-        if (isSettled) colorClass = "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400";
-        else if (isPending) colorClass = "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
-        else if (finStatus === "Disputed") colorClass = "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
-
+        const payStatus = row.original.paymentStatus || "Unpaid";
+        const paymentColors: Record<string, string> = {
+          Paid: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400",
+          Unpaid: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
+          PartiallyRefunded: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+          Refunded: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+        };
+        const colorCls = paymentColors[payStatus] || paymentColors["Unpaid"];
         return (
-          <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 ${colorClass}`}>
+          <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 ${colorCls}`}>
             <select
-              value={finStatus}
-              onChange={(e) => useStore.getState().updateOrderFinancialStatus(row.original.id, e.target.value as any)}
+              value={payStatus}
+              onChange={(e) => handlePaymentStatusChange(row.original, e.target.value)}
               className="text-xs font-medium bg-transparent border-none outline-none cursor-pointer appearance-none pr-1"
             >
-              <option value="Unsettled" className="bg-background text-foreground">{t("finance.unsettled", "غير مسوى")}</option>
-              <option value="PendingSettlement" className="bg-background text-foreground">قيد التسوية</option>
-              <option value="PartiallySettled" className="bg-background text-foreground">مسوى جزئياً</option>
-              <option value="Settled" className="bg-background text-foreground">{t("finance.settled", "مسوى")}</option>
-              <option value="Disputed" className="bg-background text-foreground">{t("finance.disputed", "متنازع عليه")}</option>
+              <option value="Unpaid" className="bg-background text-foreground">في انتظار الدفع</option>
+              <option value="Paid" className="bg-background text-foreground">تم الدفع</option>
+              <option value="PartiallyRefunded" className="bg-background text-foreground">مسترد جزئياً</option>
+              <option value="Refunded" className="bg-background text-foreground">مسترد بالكامل</option>
             </select>
           </span>
         );
@@ -261,40 +309,97 @@ export function OrderListPage() {
     {
       id: "actions",
       header: t("orders.columns.actions"),
-      cell: ({ row }) => (
-        <div className="flex items-center gap-1.5">
-          <Link
-            to={`/orders/${row.original.id}/edit`}
-            className="p-1.5 text-primary hover:bg-primary/10 rounded-md transition-colors"
-            title={t("orders.editOrder", "Edit Order")}
-          >
-            <Pencil size={15} />
-          </Link>
-          <button
-            onClick={() => handleDelete(row.original)}
-            className="p-1.5 text-destructive hover:bg-destructive/10 rounded-md transition-colors"
-            title={t("orders.deleteOrder", "Delete Order")}
-          >
-            <Trash2 size={15} />
-          </button>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const hasReturnDoc = returns.some(r => r.orderId === row.original.id);
+        const isReturnStatus = (RETURN_STATUSES as readonly string[]).includes(row.original.status) || hasReturnDoc;
+
+        return (
+          <div className="flex items-center gap-1.5">
+            {isReturnStatus ? (
+              <span className="text-[10px] font-bold text-amber-600 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                مرتجع
+              </span>
+            ) : row.original.status === "Delivered" ? (
+              <button
+                onClick={() => setSelectedReturnOrder(row.original)}
+                className="text-[10px] font-bold text-amber-600 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30 transition-colors"
+                title="تسجيل مرتجع لهذا الطلب"
+              >
+                مرتجع
+              </button>
+            ) : null}
+
+            <Link
+              to={`/orders/${row.original.id}/edit`}
+              className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
+              title={t("orders.editOrder", "Edit Order")}
+            >
+              <Pencil size={14} />
+            </Link>
+            <button
+              onClick={() => handleDelete(row.original)}
+              className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+              title={t("orders.deleteOrder", "Delete Order")}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        );
+      },
     },
   ];
 
-  // Summary stats from filtered orders
-  const totalSales = filteredOrders.reduce((sum, o) => sum + Number(o.totalRevenue || 0), 0);
-  const totalNet = filteredOrders.reduce((sum, o) => sum + Number(o.netPayoutExpected || 0), 0);
+  // Summary stats from filtered orders (Single Source of Truth)
+  const totalSales = filteredOrders.reduce((sum, o) => {
+    const returnDoc = returns.find(r => r.orderId === o.id);
+    const fin = calculateOrderFinancials(o, returnDoc);
+    return sum + fin.effectiveRevenue;
+  }, 0);
+
+  const totalNet = filteredOrders.reduce((sum, o) => {
+    const returnDoc = returns.find(r => r.orderId === o.id);
+    const fin = calculateOrderFinancials(o, returnDoc);
+    return sum + fin.finalNetProfit;
+  }, 0);
+
+  const returnOrdersCount = filteredOrders.filter(o => {
+    const hasDoc = returns.some(r => r.orderId === o.id);
+    return hasDoc || (RETURN_STATUSES as readonly string[]).includes(o.status);
+  }).length;
+
+  const totalCompensations = returns.reduce((s, r) => s + Number(r.compensationAmount || 0), 0);
 
   return (
     <div className="space-y-5">
-      {/* Header */}
+      {/* Header Top Controls */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t("orders.title")}</h1>
           <p className="text-muted-foreground text-sm mt-0.5">{t("orders.subtitle")}</p>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            to="/orders/new"
+            className="inline-flex items-center justify-center gap-1.5 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            {t("orders.newOrder")}
+          </Link>
+          <Link
+            to="/finance/collections"
+            className="inline-flex items-center justify-center gap-1.5 rounded-md text-sm font-medium border border-border/80 hover:bg-muted h-9 px-3 transition-colors"
+          >
+            <Scale size={14} />
+            <span>توفيق تسوية</span>
+          </Link>
+          <Button 
+            variant="outline" 
+            className="h-9 gap-1.5 px-3 border-border/80 hover:bg-muted"
+            onClick={() => setShowImportModal(true)}
+          >
+            <UploadCloud size={14} />
+            <span>استيراد طلبات</span>
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -312,28 +417,12 @@ export function OrderListPage() {
               </span>
             )}
           </Button>
-          <Button 
-            variant="outline" 
-            className="h-9 gap-1.5 px-3 border-primary/20 hover:bg-primary/5 text-primary"
-            onClick={() => setShowImportModal(true)}
-          >
-            <UploadCloud size={14} />
-            <span className="hidden sm:inline">استيراد</span>
-          </Button>
-          <Link
-            to="/orders/new"
-            className="inline-flex items-center justify-center gap-1.5 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            {t("orders.newOrder")}
-          </Link>
         </div>
       </div>
 
       {/* Filter Panel */}
       {showFilters && (
         <div className="flex flex-wrap items-center gap-3 p-4 bg-card border border-border/60 rounded-xl animate-in fade-in slide-in-from-top-2 duration-200">
-          {/* Platform filter */}
           <div className="flex flex-col gap-1">
             <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
               {t("common.filterPlatform")}
@@ -348,7 +437,6 @@ export function OrderListPage() {
             </select>
           </div>
 
-          {/* Status filter */}
           <div className="flex flex-col gap-1">
             <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
               {t("common.filterStatus")}
@@ -365,7 +453,6 @@ export function OrderListPage() {
             </select>
           </div>
 
-          {/* Date filter */}
           <div className="flex flex-col gap-1">
             <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
               {t("common.filterDate")}
@@ -388,7 +475,6 @@ export function OrderListPage() {
             </div>
           </div>
 
-          {/* Clear filters */}
           {hasActiveFilters && (
             <button
               onClick={clearFilters}
@@ -405,26 +491,38 @@ export function OrderListPage() {
         <OrderImportModal onClose={() => setShowImportModal(false)} />
       )}
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {selectedReturnOrder && (
+        <ReturnCreateDialog order={selectedReturnOrder} onClose={() => setSelectedReturnOrder(null)} />
+      )}
+
+      {/* Summary 4 KPI Cards (Matching Image 2) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-card border border-border/60 rounded-xl p-4 shadow-sm">
           <p className="text-xs text-muted-foreground font-medium">{t("orders.totalOrders")}</p>
           <p className="text-2xl font-bold mt-1">{filteredOrders.length}</p>
-          {hasActiveFilters && orders.length !== filteredOrders.length && (
-            <p className="text-[10px] text-muted-foreground mt-0.5">{t("orders.outOf", "من أصل")} {orders.length}</p>
-          )}
         </div>
         <div className="bg-card border border-border/60 rounded-xl p-4 shadow-sm">
           <p className="text-xs text-muted-foreground font-medium">{t("orders.totalSales")}</p>
-          <p className="text-2xl font-bold mt-1 text-primary">
-            {totalSales.toFixed(2)} {t("orders.currency")}
+          <p className="text-2xl font-bold mt-1 text-foreground">
+            {totalSales.toFixed(2)} ج.م
           </p>
         </div>
         <div className="bg-card border border-border/60 rounded-xl p-4 shadow-sm">
           <p className="text-xs text-muted-foreground font-medium">{t("orders.totalNetProfit")}</p>
-          <p className={`text-2xl font-bold mt-1 ${totalNet >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600"}`}>
-            {totalNet.toFixed(2)} {t("orders.currency")}
+          <p className={`text-2xl font-bold mt-1 ${totalNet >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+            {totalNet.toFixed(2)} ج.م
           </p>
+        </div>
+        <div className="bg-card border border-border/60 rounded-xl p-4 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground font-medium">إجمالي المرتجعات</p>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-amber-500 mt-1">{returnOrdersCount} <span className="text-xs text-muted-foreground font-normal">طلب</span></p>
+            <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5">
+              إجمالي التعويضات: {totalCompensations.toFixed(2)} ج.م
+            </p>
+          </div>
         </div>
       </div>
 

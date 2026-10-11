@@ -2,10 +2,13 @@
 import { useTranslation } from "react-i18next";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/shared/components/DataTable";
-import { Order, OrderStatus } from "@/features/orders/types/order.types";
+import { Order, OrderStatus, ReturnCondition } from "@/features/orders/types/order.types";
 import { useStore } from "@/shared/store/useStore";
 import { Badge } from "@/shared/components/ui/badge";
 import { useAuthStore } from "@/features/auth/store/auth.store";
+import { syncOrderStock } from "@/features/orders/services/inventory.service";
+import { useProducts, PRODUCT_QUERY_KEYS } from "@/features/products/hooks/useProducts";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function ReturnListPage() {
   const { t } = useTranslation();
@@ -13,10 +16,62 @@ export function ReturnListPage() {
   const updateOrder = useStore(state => state.updateOrder);
   const { user } = useAuthStore();
 
-  // Filter only orders that have a return status other than "None"
   const returnOrders = orders.filter(
     (o) => o.returnStatus && o.returnStatus !== "None"
   );
+
+  const { data: products = [] } = useProducts();
+  const queryClient = useQueryClient();
+
+  const handleStatusChange = async (order: Order, newStatus: OrderStatus) => {
+    const oldStatus = order.status;
+    if (oldStatus === newStatus) return;
+
+    updateOrder(order.id, {
+      status: newStatus,
+      updatedAt: Date.now(),
+      updatedBy: user?.uid,
+    });
+
+    if (!user) return;
+
+    await syncOrderStock(
+      order,
+      products,
+      oldStatus,
+      newStatus,
+      user.uid,
+      user.displayName || "System"
+    );
+
+    queryClient.invalidateQueries({ queryKey: PRODUCT_QUERY_KEYS.all });
+  };
+
+  const handleConditionChange = async (order: Order, newCondition: ReturnCondition) => {
+    const oldCondition = order.returnCondition || "Pending";
+    if (oldCondition === newCondition) return;
+
+    updateOrder(order.id, {
+      returnCondition: newCondition,
+      updatedAt: Date.now(),
+      updatedBy: user?.uid,
+    });
+
+    if (!user) return;
+
+    await syncOrderStock(
+      order,
+      products,
+      order.status,
+      order.status,
+      user.uid,
+      user.displayName || "System",
+      oldCondition,
+      newCondition
+    );
+
+    queryClient.invalidateQueries({ queryKey: PRODUCT_QUERY_KEYS.all });
+  };
 
   const statusColors: Record<string, string> = {
     Returned: "bg-gray-100 text-gray-700 dark:bg-gray-800/40 dark:text-gray-300",
@@ -78,13 +133,7 @@ export function ReturnListPage() {
           <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 ${colorClass}`}>
             <select
               value={status}
-              onChange={(e) =>
-                updateOrder(row.original.id, {
-                  status: e.target.value as OrderStatus,
-                  updatedAt: Date.now(),
-                  updatedBy: user?.uid,
-                })
-              }
+              onChange={(e) => handleStatusChange(row.original, e.target.value as OrderStatus)}
               className="text-xs font-medium bg-transparent border-none outline-none cursor-pointer appearance-none pr-1"
             >
               {RETURN_STATUSES.map(s => (
@@ -124,26 +173,108 @@ export function ReturnListPage() {
       }
     },
     {
-      accessorKey: "financialStatus",
-      header: t("returns.columns.financialStatus", "الحالة المالية"),
+      accessorKey: "returnCondition",
+      header: t("returns.columns.condition", "حالة الاستلام"),
       cell: ({ row }) => {
-        const financialStatus = row.original.financialStatus;
+        const cond = row.original.returnCondition || "Pending";
         return (
           <select
-            value={financialStatus}
-            onChange={(e) =>
-              updateOrder(row.original.id, {
-                financialStatus: e.target.value as any,
-                updatedAt: Date.now(),
-                updatedBy: user?.uid,
-              })
-            }
-            className="text-xs border rounded px-2 py-1 bg-background"
+            value={cond}
+            onChange={(e) => handleConditionChange(row.original, e.target.value as ReturnCondition)}
+            className={`text-xs border rounded px-2 py-1 bg-background font-medium ${
+              cond === "Sellable" ? "text-emerald-600 border-emerald-200" :
+              cond === "Damaged" || cond === "MissingParts" ? "text-red-600 border-red-200" :
+              "text-amber-600 border-amber-200"
+            }`}
           >
-            <option value="Unsettled">{t("finance.unsettled", "غير مسوى")}</option>
-            <option value="Settled">{t("finance.settled", "مسوى / تم التعويض")}</option>
-            <option value="Disputed">{t("finance.disputed", "متنازع عليه / مرفوض")}</option>
+            <option value="Pending">في انتظار الاستلام</option>
+            <option value="Sellable">سليم (صالح للبيع)</option>
+            <option value="Damaged">تالف</option>
+            <option value="MissingParts">ناقص الملحقات</option>
           </select>
+        );
+      }
+    },
+    {
+      accessorKey: "financialStatus",
+      header: t("returns.columns.financialStatus", "حالة التعويض"),
+      cell: ({ row }) => {
+        const financialStatus = row.original.financialStatus || "Unsettled";
+        const order = row.original;
+        // Full amount = totalRevenue or netPayoutExpected
+        const fullAmount = Number(order.netPayoutExpected || order.totalRevenue || 0);
+
+        return (
+          <div className="flex flex-col gap-1 min-w-[140px]">
+            <select
+              value={financialStatus}
+              onChange={(e) => {
+                const newStatus = e.target.value;
+                const updates: any = {
+                  financialStatus: newStatus,
+                  updatedAt: Date.now(),
+                  updatedBy: user?.uid,
+                };
+                // If full compensation, auto-set the claim amount to full value
+                if (newStatus === "Compensated") {
+                  updates.returnClaimAmount = fullAmount;
+                }
+                // If not compensated, clear claim amount
+                if (newStatus === "NotCompensated" || newStatus === "Unsettled") {
+                  updates.returnClaimAmount = 0;
+                }
+                updateOrder(order.id, updates);
+              }}
+              className={`text-xs border rounded px-2 py-1 bg-background font-medium w-full ${
+                financialStatus === "Compensated" ? "text-emerald-600 border-emerald-300 bg-emerald-50 dark:bg-emerald-900/20" :
+                financialStatus === "NotCompensated" ? "text-red-600 border-red-300 bg-red-50 dark:bg-red-900/20" :
+                financialStatus === "PartiallyCompensated" ? "text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-900/20" :
+                "text-muted-foreground border-border"
+              }`}
+            >
+              <option value="Unsettled">غير محدد</option>
+              <option value="Compensated">✅ تم التعويض بالكامل</option>
+              <option value="PartiallyCompensated">⚠️ تعويض جزئي</option>
+              <option value="NotCompensated">❌ لم يتم التعويض</option>
+            </select>
+
+            {/* Compensated: show full amount (read-only) */}
+            {financialStatus === "Compensated" && (
+              <div className="text-xs text-emerald-600 font-semibold px-1">
+                المبلغ: {fullAmount.toFixed(2)} {t("orders.currency")}
+              </div>
+            )}
+
+            {/* Partially Compensated: allow entering partial amount */}
+            {financialStatus === "PartiallyCompensated" && (
+              <input
+                key={order.id + "-partial"}
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="أدخل المبلغ المعوض جزئياً"
+                className="text-xs border border-amber-300 rounded px-2 py-1 bg-background mt-0.5 w-full focus:outline-none focus:ring-1 focus:ring-amber-400"
+                defaultValue={order.returnClaimAmount || ""}
+                onBlur={(e) => {
+                  const val = parseFloat(e.target.value);
+                  if (!isNaN(val)) {
+                    updateOrder(order.id, {
+                      returnClaimAmount: val,
+                      updatedAt: Date.now(),
+                      updatedBy: user?.uid,
+                    });
+                  }
+                }}
+              />
+            )}
+
+            {/* Not Compensated: show clear message */}
+            {financialStatus === "NotCompensated" && (
+              <div className="text-xs text-red-500 px-1">
+                لم يُحوَّل أي مبلغ
+              </div>
+            )}
+          </div>
         );
       }
     }

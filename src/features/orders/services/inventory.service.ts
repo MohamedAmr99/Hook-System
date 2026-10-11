@@ -1,116 +1,256 @@
-// @ts-nocheck
-/**
- * InventoryService
- * ----------------
- * Central place for ALL Firebase stock adjustments driven by order events.
- * Keeps OrderListPage / OrderForm / ReturnListPage thin and consistent.
- *
- * Rules:
- *  addStock    → quantity += qty  (restock)
- *  deductStock → quantity -= qty  (deduct, floor 0)
- */
-
-import { ProductService } from "@/features/products/services/product.service";
-import { Product } from "@/features/products/types";
+import { db } from "@/lib/firebase/config";
+import { doc, runTransaction } from "firebase/firestore";
 import { Order } from "../types/order.types";
+import { Product } from "@/features/products/types";
+import { ActivityService } from "@/shared/services/activity.service";
 
-type StockOp = "deduct" | "restock";
+const ORDERS_COLLECTION = "orders";
+const PRODUCTS_COLLECTION = "products";
 
-interface AdjustParams {
+interface CreateOrderAtomicParams {
   order: Order;
-  products: Product[];      // current list from Firebase (useProducts data)
-  op: StockOp;
   userId: string;
   userDisplayName: string;
 }
 
-async function adjustStock({ order, products, op, userId, userDisplayName }: AdjustParams) {
-  for (const item of order.items) {
-    const product = products.find((p) => p.sku === item.sku);
-    if (!product) continue;
-
-    const qty = item.quantity || (item as any).orderedQuantity || (item as any).receivedQuantity || 0;
-    const newQty =
-      op === "deduct"
-        ? Math.max(0, Number(product.quantity) - Number(qty))
-        : Number(product.quantity) + Number(qty);
-
-    await ProductService.updateProduct(
-      product.id,
-      { quantity: newQty },
-      userId,
-      userDisplayName
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-// Public helpers — one per event
-// ─────────────────────────────────────────────
-
-/** Called when a NEW order is placed → deduct from stock */
-export async function onOrderCreated(params: Omit<AdjustParams, "op">) {
-  await adjustStock({ ...params, op: "deduct" });
-}
-
-/** Called when order is CANCELLED from any active state → restock */
-export async function onOrderCancelled(params: Omit<AdjustParams, "op">) {
-  await adjustStock({ ...params, op: "restock" });
+interface UpdateOrderAtomicParams {
+  oldOrder: Order;
+  updatedOrder: Order;
+  userId: string;
+  userDisplayName: string;
 }
 
 /**
- * Called when a RETURNED order is received.
- * - condition "Intact"  → restock (item is sellable again)
- * - condition anything else (Damaged / Missing Parts / Unknown) → do NOT restock
+ * Creates an order inside a Firestore Transaction, ensuring stock reservation is atomic and overselling is prevented.
  */
-export async function onOrderReturned(
-  params: Omit<AdjustParams, "op"> & { condition: string }
-) {
-  if (params.condition === "Intact") {
-    await adjustStock({ ...params, op: "restock" });
-  }
-  // Damaged / Missing Parts → no stock action
+export async function createOrderAtomic({
+  order,
+  userId,
+  userDisplayName,
+}: CreateOrderAtomicParams): Promise<void> {
+  await runTransaction(db, async (transaction) => {
+    // 1. Validate & Reserve stock for each order item
+    for (const item of order.items) {
+      const productId = item.productId;
+      if (!productId) continue;
+
+      const productRef = doc(db, PRODUCTS_COLLECTION, productId);
+      const productSnap = await transaction.get(productRef);
+
+      if (!productSnap.exists()) {
+        throw new Error(`المنتج غير موجود: "${item.name}"`);
+      }
+
+      const productData = productSnap.data() as Product;
+      const currentQty = Number(productData.quantity || 0);
+      const reservedQty = Number(productData.reservedQuantity || 0);
+      const unavailableQty = Number(productData.unavailableQuantity || 0);
+
+      const availableQty = currentQty - reservedQty - unavailableQty;
+      const requestedQty = Number(item.quantity || 1);
+
+      if (availableQty < requestedQty) {
+        throw new Error(
+          `البيع الزائد مرفوض: المخزون المتاح للمنتج "${productData.productName}" هو ${Math.max(0, availableQty)} فقط، بينما المطلوبة في الطلب ${requestedQty}.`
+        );
+      }
+
+      // Update reserved quantity on product
+      transaction.update(productRef, {
+        reservedQuantity: reservedQty + requestedQty,
+        updatedAt: Date.now(),
+        updatedBy: userId,
+      });
+    }
+
+    // 2. Save the order document
+    const orderRef = doc(db, ORDERS_COLLECTION, order.id);
+    transaction.set(orderRef, {
+      ...order,
+      stockState: "reserved",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      createdBy: userId,
+      updatedBy: userId,
+    });
+  });
+
+  // Log activity
+  await ActivityService.logAction({
+    userId,
+    userDisplayName,
+    actionType: "create",
+    entityType: "order",
+    entityId: order.id,
+    entityName: `Order ${order.platformOrderId}`,
+    description: `Created order ${order.platformOrderId} on ${order.platform} and reserved stock atomically.`,
+  }).catch(() => {});
 }
 
 /**
- * Called when a Returned+Intact order condition is CHANGED to Damaged.
- * We need to undo the restock that happened before.
+ * Updates an order inside a Firestore Transaction, adjusting reserved quantities according to delta.
  */
-export async function onanyChangedToDamaged(params: Omit<AdjustParams, "op">) {
-  await adjustStock({ ...params, op: "deduct" });
+export async function updateOrderAtomic({
+  oldOrder,
+  updatedOrder,
+  userId,
+  userDisplayName,
+}: UpdateOrderAtomicParams): Promise<void> {
+  await runTransaction(db, async (transaction) => {
+    // Map old item quantities by productId
+    const oldQtyMap = new Map<string, number>();
+    (oldOrder.items || []).forEach((item) => {
+      if (item.productId) {
+        oldQtyMap.set(item.productId, (oldQtyMap.get(item.productId) || 0) + Number(item.quantity || 0));
+      }
+    });
+
+    // Map updated item quantities by productId
+    const newQtyMap = new Map<string, number>();
+    (updatedOrder.items || []).forEach((item) => {
+      if (item.productId) {
+        newQtyMap.set(item.productId, (newQtyMap.get(item.productId) || 0) + Number(item.quantity || 0));
+      }
+    });
+
+    // Collect all affected product IDs
+    const allProductIds = new Set([...oldQtyMap.keys(), ...newQtyMap.keys()]);
+
+    for (const productId of allProductIds) {
+      const productRef = doc(db, PRODUCTS_COLLECTION, productId);
+      const productSnap = await transaction.get(productRef);
+
+      if (!productSnap.exists()) continue;
+
+      const productData = productSnap.data() as Product;
+      const currentReserved = Number(productData.reservedQuantity || 0);
+      const oldQty = oldQtyMap.get(productId) || 0;
+      const newQty = newQtyMap.get(productId) || 0;
+      const diff = newQty - oldQty;
+
+      if (diff > 0) {
+        // Quantity increased - check available stock
+        const currentQty = Number(productData.quantity || 0);
+        const unavailableQty = Number(productData.unavailableQuantity || 0);
+        const availableQty = currentQty - currentReserved - unavailableQty;
+
+        if (availableQty < diff) {
+          throw new Error(
+            `البيع الزائد مرفوض: المخزون المتاح للمنتج "${productData.productName}" هو ${Math.max(0, availableQty)} فقط، لا يكفي للزيادة المطلوبة (+${diff}).`
+          );
+        }
+      }
+
+      const nextReserved = Math.max(0, currentReserved + diff);
+      transaction.update(productRef, {
+        reservedQuantity: nextReserved,
+        updatedAt: Date.now(),
+        updatedBy: userId,
+      });
+    }
+
+    // Update order doc
+    const orderRef = doc(db, ORDERS_COLLECTION, updatedOrder.id);
+    transaction.update(orderRef, {
+      ...updatedOrder,
+      updatedAt: Date.now(),
+      updatedBy: userId,
+    });
+  });
+
+  // Log activity
+  await ActivityService.logAction({
+    userId,
+    userDisplayName,
+    actionType: "update",
+    entityType: "order",
+    entityId: updatedOrder.id,
+    entityName: `Order ${updatedOrder.platformOrderId}`,
+    description: `Updated order ${updatedOrder.platformOrderId} and adjusted stock reservation atomically.`,
+  }).catch(() => {});
 }
 
-/**
- * Called when a Returned+Damaged order condition is CHANGED to Intact.
- * We restock now.
- */
-export async function onanyChangedToIntact(params: Omit<AdjustParams, "op">) {
-  await adjustStock({ ...params, op: "restock" });
+export interface OrderInventoryContext {
+  order: Order;
+  products?: Product[];
+  userId: string;
+  userDisplayName: string;
+  wasIntact?: boolean;
 }
 
-/**
- * Called when a Cancelled order is RE-ACTIVATED (Cancelled → Active).
- * Need to deduct stock again.
- */
-export async function onOrderReactivated(params: Omit<AdjustParams, "op">) {
-  await adjustStock({ ...params, op: "deduct" });
+export async function onOrderCancelled({ order, userId }: OrderInventoryContext): Promise<void> {
+  await runTransaction(db, async (transaction) => {
+    for (const item of order.items || []) {
+      if (!item.productId) continue;
+      const productRef = doc(db, PRODUCTS_COLLECTION, item.productId);
+      const snap = await transaction.get(productRef);
+      if (!snap.exists()) continue;
+      const p = snap.data() as Product;
+      const nextReserved = Math.max(0, Number(p.reservedQuantity || 0) - Number(item.quantity || 1));
+      transaction.update(productRef, { reservedQuantity: nextReserved, updatedAt: Date.now(), updatedBy: userId });
+    }
+  }).catch(() => {});
 }
 
-/**
- * Called when an order is DELETED.
- * - Was Active → restock
- * - Was Returned+Intact → deduct (stock was already restored, avoid double-restock)
- * - Was Cancelled / Returned+Damaged → no action
- */
-export async function onOrderDeleted(params: Omit<AdjustParams, "op"> & { wasIntact: boolean }) {
-  const activeStatuses = ["Pending", "Processing", "Shipped", "Delivered"];
-  const returnStatuses = ["Returned", "ReturnedToSeller", "ReturningToSeller", "RejectedByBuyer"];
-
-  if (activeStatuses.includes(params.order.status)) {
-    await adjustStock({ ...params, op: "restock" });
-  } else if (returnStatuses.includes(params.order.status) && params.wasIntact) {
-    await adjustStock({ ...params, op: "deduct" });
-  }
-  // Cancelled or Returned+Damaged → nothing
+export async function onOrderReactivated({ order, userId }: OrderInventoryContext): Promise<void> {
+  await runTransaction(db, async (transaction) => {
+    for (const item of order.items || []) {
+      if (!item.productId) continue;
+      const productRef = doc(db, PRODUCTS_COLLECTION, item.productId);
+      const snap = await transaction.get(productRef);
+      if (!snap.exists()) continue;
+      const p = snap.data() as Product;
+      const nextReserved = Number(p.reservedQuantity || 0) + Number(item.quantity || 1);
+      transaction.update(productRef, { reservedQuantity: nextReserved, updatedAt: Date.now(), updatedBy: userId });
+    }
+  }).catch(() => {});
 }
 
+export async function onOrderDeleted(ctx: OrderInventoryContext): Promise<void> {
+  await onOrderCancelled(ctx);
+}
+
+
+export async function syncOrderStock(
+  order: Order,
+  products?: Product[],
+  oldStatus?: OrderStatus,
+  newStatus?: OrderStatus,
+  userId?: string,
+  userDisplayName?: string,
+  oldCondition?: string,
+  newCondition?: string
+): Promise<void> {
+  if (!order || !order.items) return;
+  const uid = userId || "system";
+
+  await runTransaction(db, async (transaction) => {
+    for (const item of order.items) {
+      if (!item.productId) continue;
+      const productRef = doc(db, PRODUCTS_COLLECTION, item.productId);
+      const snap = await transaction.get(productRef);
+      if (!snap.exists()) continue;
+
+      const p = snap.data() as Product;
+      let qty = Number(p.quantity || 0);
+      let reserved = Number(p.reservedQuantity || 0);
+      let unavailable = Number(p.unavailableQuantity || 0);
+      const itemQty = Number(item.quantity || 1);
+
+      if (newCondition === "Healthy" && oldCondition !== "Healthy") {
+        qty += itemQty;
+      } else if (newCondition && ["Damaged", "MissingParts"].includes(newCondition) && oldCondition === "Healthy") {
+        qty = Math.max(0, qty - itemQty);
+        unavailable += itemQty;
+      }
+
+      transaction.update(productRef, {
+        quantity: qty,
+        reservedQuantity: reserved,
+        unavailableQuantity: unavailable,
+        updatedAt: Date.now(),
+        updatedBy: uid,
+      });
+    }
+  }).catch(() => {});
+}

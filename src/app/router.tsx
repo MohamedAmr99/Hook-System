@@ -10,7 +10,7 @@ import { ProductEditPage } from "@/features/products/pages/ProductEditPage"
 import { OrderListPage } from "@/features/orders/pages/OrderListPage"
 import { OrderCreatePage } from "@/features/orders/pages/OrderCreatePage"
 import { OrderEditPage } from "@/features/orders/pages/OrderEditPage"
-import { ReturnListPage } from "@/features/orders/pages/ReturnListPage"
+import { ReturnsPage } from "@/features/returns/pages/ReturnsPage"
 import { FinanceDashboardPage } from "@/features/finance/pages/FinanceDashboardPage"
 import { CollectionListPage } from "@/features/finance/pages/CollectionListPage"
 
@@ -48,7 +48,7 @@ export const router = createBrowserRouter([
           { path: "orders", element: <OrderListPage /> },
           { path: "orders/new", element: <OrderCreatePage /> },
           { path: "orders/:id/edit", element: <OrderEditPage /> },
-          { path: "returns", element: <ReturnListPage /> },
+          { path: "returns", element: <ReturnsPage /> },
           { path: "purchases", element: <PurchaseListPage /> },
           { path: "purchases/new", element: <PurchaseCreatePage /> },
           { path: "purchases/:id/edit", element: <PurchaseEditPage /> },

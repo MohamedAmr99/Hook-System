@@ -4,10 +4,12 @@ export type OrderStatus =
   | "Shipped" 
   | "Delivered" 
   | "Cancelled"
-  | "Returned"
-  | "ReturnedToSeller"
-  | "ReturningToSeller"
-  | "RejectedByBuyer";
+  | "Returned"             // Retained for legacy UI filter compatibility
+  | "ReturnedToSeller"     // Retained for legacy UI filter compatibility
+  | "ReturningToSeller"    // Retained for legacy UI filter compatibility
+  | "RejectedByBuyer";     // Retained for legacy UI filter compatibility
+
+export type StockState = "reserved" | "deducted" | "released";
 
 export type PaymentStatus = 
   | "Unpaid"
@@ -20,7 +22,10 @@ export type FinancialStatus =
   | "PendingSettlement"
   | "PartiallySettled"
   | "Settled"
-  | "Disputed";
+  | "Disputed"
+  | "Compensated"
+  | "PartiallyCompensated"
+  | "NotCompensated";
 
 export type ReturnStatus = 
   | "None"
@@ -28,6 +33,12 @@ export type ReturnStatus =
   | "Returned"
   | "Damaged"
   | "LostInTransit";
+
+export type ReturnCondition =
+  | "Pending"
+  | "Sellable"
+  | "Damaged"
+  | "MissingParts";
 
 export interface OrderItem {
   id: string; // Internal Item ID
@@ -48,9 +59,12 @@ export interface Order {
   
   // Statuses (Separated)
   status: OrderStatus;
+  stockState?: StockState; // State machine for inventory idempotency
   paymentStatus: PaymentStatus;
   financialStatus: FinancialStatus;
-  returnStatus: ReturnStatus;
+  returnStatus?: ReturnStatus;
+  returnCondition?: ReturnCondition;
+
   
   orderDate: number; // Unix timestamp
   
@@ -73,10 +87,16 @@ export interface Order {
   
   netPayoutExpected: number; // totalRevenue - (sellingFees + fulfillmentFees + otherFees)
 
+  // Payment & Collection Tracking
+  paidAmount?: number; // Actual amount collected
+  refundedAmount?: number; // Actual amount refunded to customer
+  netCollectedAmount?: number; // paidAmount - refundedAmount
+
   // Returns Financials
   returnShippingCost?: number;
   refundAmount?: number;
   returnClaimAmount?: number;
+
   
   // Settlement Reference
   settlementId?: string;
