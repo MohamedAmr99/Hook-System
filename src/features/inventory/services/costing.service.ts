@@ -11,7 +11,7 @@ export class CostingService {
     addedQuantity: number,
     addedUnitCost: number,
     referenceId: string,
-    isEstimated: boolean = false
+    isEstimated: boolean = false,
   ): Promise<void> {
     if (addedQuantity <= 0) return;
 
@@ -22,10 +22,11 @@ export class CostingService {
     const previousWac = product.costPrice || 0;
 
     const newTotalStock = previousStock + addedQuantity;
-    
+
     // Formula: ((Old Stock * Old WAC) + (New Stock * New Cost)) / Total New Stock
-    const newWeightedAverageCost = 
-      ((previousStock * previousWac) + (addedQuantity * addedUnitCost)) / newTotalStock;
+    const newWeightedAverageCost =
+      (previousStock * previousWac + addedQuantity * addedUnitCost) /
+      newTotalStock;
 
     // 1. Save cost history
     const history: Omit<CostHistory, "id"> = {
@@ -38,14 +39,14 @@ export class CostingService {
       addedUnitCost,
       newTotalStock,
       referenceId,
-      isEstimated
+      isEstimated,
     };
 
     await costHistoryRepository.create(history);
 
     // 2. Update Product with new WAC
     await productRepository.update(productId, {
-      costPrice: newWeightedAverageCost
+      costPrice: newWeightedAverageCost,
     });
   }
 }

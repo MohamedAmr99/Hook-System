@@ -2,10 +2,40 @@ import { z } from "zod";
 
 export const PlatformSchema = z.string().min(1, "Platform is required");
 
-export const OrderStatusSchema = z.enum(["Pending", "Processing", "Shipped", "Delivered", "Cancelled", "Returned", "ReturnedToSeller", "ReturningToSeller", "RejectedByBuyer"]);
-export const PaymentStatusSchema = z.enum(["Unpaid", "Paid", "PartiallyRefunded", "Refunded"]);
-export const FinancialStatusSchema = z.enum(["Unsettled", "PendingSettlement", "PartiallySettled", "Settled", "Disputed", "Compensated", "PartiallyCompensated", "NotCompensated"]);
-export const ReturnStatusSchema = z.enum(["None", "Requested", "Returned", "Damaged", "LostInTransit"]);
+export const OrderStatusSchema = z.enum([
+  "Pending",
+  "Processing",
+  "Shipped",
+  "Delivered",
+  "Cancelled",
+  "Returned",
+  "ReturnedToSeller",
+  "ReturningToSeller",
+  "RejectedByBuyer",
+]);
+export const PaymentStatusSchema = z.enum([
+  "Unpaid",
+  "Paid",
+  "PartiallyRefunded",
+  "Refunded",
+]);
+export const FinancialStatusSchema = z.enum([
+  "Unsettled",
+  "PendingSettlement",
+  "PartiallySettled",
+  "Settled",
+  "Disputed",
+  "Compensated",
+  "PartiallyCompensated",
+  "NotCompensated",
+]);
+export const ReturnStatusSchema = z.enum([
+  "None",
+  "Requested",
+  "Returned",
+  "Damaged",
+  "LostInTransit",
+]);
 
 export const OrderItemSchema = z.object({
   id: z.string().optional(),
@@ -23,12 +53,12 @@ export const OrderSchema = z.object({
   id: z.string().optional(),
   platformOrderId: z.string().min(1, "Platform Order ID is required"),
   platform: PlatformSchema,
-  
+
   status: OrderStatusSchema.default("Pending"),
   paymentStatus: PaymentStatusSchema.default("Unpaid"),
   financialStatus: FinancialStatusSchema.default("Unsettled"),
   returnStatus: ReturnStatusSchema.default("None"),
-  
+
   orderDate: z.coerce.number(), // Date in ms
 
   items: z.array(OrderItemSchema).min(1, "At least one item is required"),
@@ -38,7 +68,7 @@ export const OrderSchema = z.object({
   discountTotal: z.coerce.number().default(0),
   taxTotal: z.coerce.number().default(0),
   shippingCollected: z.coerce.number().default(0),
-  
+
   totalRevenue: z.coerce.number().default(0),
   totalCogs: z.coerce.number().default(0),
   grossProfit: z.coerce.number().default(0),
@@ -58,9 +88,8 @@ export const OrderSchema = z.object({
   returnShippingCost: z.coerce.number().optional(),
   refundAmount: z.coerce.number().optional(),
   returnClaimAmount: z.coerce.number().optional(),
-  
+
   settlementId: z.string().optional(),
 });
 
 export type OrderInput = z.infer<typeof OrderSchema>;
-

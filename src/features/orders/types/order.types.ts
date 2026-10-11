@@ -1,23 +1,23 @@
-export type OrderStatus = 
-  | "Pending" 
-  | "Processing" 
-  | "Shipped" 
-  | "Delivered" 
+export type OrderStatus =
+  | "Pending"
+  | "Processing"
+  | "Shipped"
+  | "Delivered"
   | "Cancelled"
-  | "Returned"             // Retained for legacy UI filter compatibility
-  | "ReturnedToSeller"     // Retained for legacy UI filter compatibility
-  | "ReturningToSeller"    // Retained for legacy UI filter compatibility
-  | "RejectedByBuyer";     // Retained for legacy UI filter compatibility
+  | "Returned" // Retained for legacy UI filter compatibility
+  | "ReturnedToSeller" // Retained for legacy UI filter compatibility
+  | "ReturningToSeller" // Retained for legacy UI filter compatibility
+  | "RejectedByBuyer"; // Retained for legacy UI filter compatibility
 
 export type StockState = "reserved" | "deducted" | "released";
 
-export type PaymentStatus = 
+export type PaymentStatus =
   | "Unpaid"
   | "Paid"
   | "PartiallyRefunded"
   | "Refunded";
 
-export type FinancialStatus = 
+export type FinancialStatus =
   | "Unsettled"
   | "PendingSettlement"
   | "PartiallySettled"
@@ -27,7 +27,7 @@ export type FinancialStatus =
   | "PartiallyCompensated"
   | "NotCompensated";
 
-export type ReturnStatus = 
+export type ReturnStatus =
   | "None"
   | "Requested"
   | "Returned"
@@ -56,7 +56,7 @@ export interface Order {
   id: string; // Internal ID
   platformOrderId: string; // External ID
   platform: string;
-  
+
   // Statuses (Separated)
   status: OrderStatus;
   stockState?: StockState; // State machine for inventory idempotency
@@ -65,9 +65,8 @@ export interface Order {
   returnStatus?: ReturnStatus;
   returnCondition?: ReturnCondition;
 
-  
   orderDate: number; // Unix timestamp
-  
+
   items: OrderItem[];
 
   // Financials
@@ -75,7 +74,7 @@ export interface Order {
   discountTotal: number;
   taxTotal: number;
   shippingCollected: number; // Shipping charged to customer
-  
+
   totalRevenue: number; // subtotal - discountTotal + taxTotal + shippingCollected
   totalCogs: number; // Sum of (items.unitCogs * quantity)
   grossProfit: number; // totalRevenue - totalCogs
@@ -84,7 +83,7 @@ export interface Order {
   sellingFees: number;
   fulfillmentFees: number;
   otherFees: number;
-  
+
   netPayoutExpected: number; // totalRevenue - (sellingFees + fulfillmentFees + otherFees)
 
   // Payment & Collection Tracking
@@ -97,7 +96,6 @@ export interface Order {
   refundAmount?: number;
   returnClaimAmount?: number;
 
-  
   // Settlement Reference
   settlementId?: string;
 

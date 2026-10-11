@@ -83,16 +83,18 @@ export const ReturnService = {
 
     const isRestockToggled = updates.restocked !== undefined && (!currentReturn || updates.restocked !== currentReturn.restocked);
 
+    const effectiveCondition = updates.returnCondition || currentReturn?.returnCondition;
+
     if (isRestockToggled) {
       const productId = updates.productId || currentReturn?.productId;
       const sku = updates.sku || currentReturn?.sku;
       const qty = Number(updates.quantity || currentReturn?.quantity || 1);
 
-      if (updates.restocked) {
-        // Restock -> Increment inventory
+      if (updates.restocked && effectiveCondition === "healthy") {
+        // Restock -> Increment inventory only for healthy returns
         await adjustProductStock(productId, sku, qty);
-      } else {
-        // Undo restock -> Decrement inventory
+      } else if (!updates.restocked && currentReturn?.restocked && currentReturn?.returnCondition === "healthy") {
+        // Undo restock -> Decrement previously restocked inventory
         await adjustProductStock(productId, sku, -qty);
       }
     }

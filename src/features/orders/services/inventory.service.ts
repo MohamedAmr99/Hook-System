@@ -51,7 +51,7 @@ export async function createOrderAtomic({
 
       if (availableQty < requestedQty) {
         throw new Error(
-          `البيع الزائد مرفوض: المخزون المتاح للمنتج "${productData.productName}" هو ${Math.max(0, availableQty)} فقط، بينما المطلوبة في الطلب ${requestedQty}.`
+          `البيع الزائد مرفوض: المخزون المتاح للمنتج "${productData.productName}" هو ${Math.max(0, availableQty)} فقط، بينما المطلوبة في الطلب ${requestedQty}.`,
         );
       }
 
@@ -101,7 +101,10 @@ export async function updateOrderAtomic({
     const oldQtyMap = new Map<string, number>();
     (oldOrder.items || []).forEach((item) => {
       if (item.productId) {
-        oldQtyMap.set(item.productId, (oldQtyMap.get(item.productId) || 0) + Number(item.quantity || 0));
+        oldQtyMap.set(
+          item.productId,
+          (oldQtyMap.get(item.productId) || 0) + Number(item.quantity || 0),
+        );
       }
     });
 
@@ -109,7 +112,10 @@ export async function updateOrderAtomic({
     const newQtyMap = new Map<string, number>();
     (updatedOrder.items || []).forEach((item) => {
       if (item.productId) {
-        newQtyMap.set(item.productId, (newQtyMap.get(item.productId) || 0) + Number(item.quantity || 0));
+        newQtyMap.set(
+          item.productId,
+          (newQtyMap.get(item.productId) || 0) + Number(item.quantity || 0),
+        );
       }
     });
 
@@ -136,7 +142,7 @@ export async function updateOrderAtomic({
 
         if (availableQty < diff) {
           throw new Error(
-            `البيع الزائد مرفوض: المخزون المتاح للمنتج "${productData.productName}" هو ${Math.max(0, availableQty)} فقط، لا يكفي للزيادة المطلوبة (+${diff}).`
+            `البيع الزائد مرفوض: المخزون المتاح للمنتج "${productData.productName}" هو ${Math.max(0, availableQty)} فقط، لا يكفي للزيادة المطلوبة (+${diff}).`,
           );
         }
       }
@@ -178,7 +184,10 @@ export interface OrderInventoryContext {
   wasIntact?: boolean;
 }
 
-export async function onOrderCancelled({ order, userId }: OrderInventoryContext): Promise<void> {
+export async function onOrderCancelled({
+  order,
+  userId,
+}: OrderInventoryContext): Promise<void> {
   await runTransaction(db, async (transaction) => {
     for (const item of order.items || []) {
       if (!item.productId) continue;
@@ -186,13 +195,23 @@ export async function onOrderCancelled({ order, userId }: OrderInventoryContext)
       const snap = await transaction.get(productRef);
       if (!snap.exists()) continue;
       const p = snap.data() as Product;
-      const nextReserved = Math.max(0, Number(p.reservedQuantity || 0) - Number(item.quantity || 1));
-      transaction.update(productRef, { reservedQuantity: nextReserved, updatedAt: Date.now(), updatedBy: userId });
+      const nextReserved = Math.max(
+        0,
+        Number(p.reservedQuantity || 0) - Number(item.quantity || 1),
+      );
+      transaction.update(productRef, {
+        reservedQuantity: nextReserved,
+        updatedAt: Date.now(),
+        updatedBy: userId,
+      });
     }
   }).catch(() => {});
 }
 
-export async function onOrderReactivated({ order, userId }: OrderInventoryContext): Promise<void> {
+export async function onOrderReactivated({
+  order,
+  userId,
+}: OrderInventoryContext): Promise<void> {
   await runTransaction(db, async (transaction) => {
     for (const item of order.items || []) {
       if (!item.productId) continue;
@@ -200,16 +219,22 @@ export async function onOrderReactivated({ order, userId }: OrderInventoryContex
       const snap = await transaction.get(productRef);
       if (!snap.exists()) continue;
       const p = snap.data() as Product;
-      const nextReserved = Number(p.reservedQuantity || 0) + Number(item.quantity || 1);
-      transaction.update(productRef, { reservedQuantity: nextReserved, updatedAt: Date.now(), updatedBy: userId });
+      const nextReserved =
+        Number(p.reservedQuantity || 0) + Number(item.quantity || 1);
+      transaction.update(productRef, {
+        reservedQuantity: nextReserved,
+        updatedAt: Date.now(),
+        updatedBy: userId,
+      });
     }
   }).catch(() => {});
 }
 
-export async function onOrderDeleted(ctx: OrderInventoryContext): Promise<void> {
+export async function onOrderDeleted(
+  ctx: OrderInventoryContext,
+): Promise<void> {
   await onOrderCancelled(ctx);
 }
-
 
 export async function syncOrderStock(
   order: Order,
@@ -219,7 +244,7 @@ export async function syncOrderStock(
   userId?: string,
   userDisplayName?: string,
   oldCondition?: string,
-  newCondition?: string
+  newCondition?: string,
 ): Promise<void> {
   if (!order || !order.items) return;
   const uid = userId || "system";
@@ -239,7 +264,11 @@ export async function syncOrderStock(
 
       if (newCondition === "Healthy" && oldCondition !== "Healthy") {
         qty += itemQty;
-      } else if (newCondition && ["Damaged", "MissingParts"].includes(newCondition) && oldCondition === "Healthy") {
+      } else if (
+        newCondition &&
+        ["Damaged", "MissingParts"].includes(newCondition) &&
+        oldCondition === "Healthy"
+      ) {
         qty = Math.max(0, qty - itemQty);
         unavailable += itemQty;
       }
